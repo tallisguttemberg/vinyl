@@ -1,0 +1,37 @@
+
+# IDEs
+.idea/
+.vscode/
+*.swp
+*.iml
+
+# Node
+node_modules/
+dist/
+npm-debug.log
+
+# Gradle / Java / Kotlin
+.gradle/
+**/build/
+**/out/
+**/target/
+**/.gradle/
+*.class
+*.jar
+*.war
+
+# Docker
+.docker/
+
+# Frontend
+**/node_modules/
+**/dist/
+**/.vite/
+npm-debug.log
+yarn-error.log
+*.tar.gz
+*.zip
+
+# OS
+.DS_Store
+Thumbs.db
