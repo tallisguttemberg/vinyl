@@ -1,0 +1,119 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Material {
+  id              String   @id @default(cuid())
+  organizationId  String
+  name            String
+  pricePerRoll    Decimal  @db.Decimal(10, 2)
+  rollLength      Decimal  @db.Decimal(10, 2) // in meters
+  width           Decimal  @db.Decimal(10, 2) // in meters
+  costPerLinearMeter Decimal @db.Decimal(10, 2)
+  costPerSqMeter  Decimal  @db.Decimal(10, 2)
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  orderItems      OrderItem[]
+
+  @@index([organizationId])
+}
+
+enum BillingType {
+  FIXED
+  PER_M2
+}
+
+model ServiceType {
+  id              String      @id @default(cuid())
+  organizationId  String
+  name            String
+  billingType     BillingType
+  defaultPrice    Decimal?    @db.Decimal(10, 2) // Optional default price
+  
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  orderItems      OrderItem[]
+
+  @@index([organizationId])
+}
+
+enum OrderStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+model Order {
+  id              String      @id @default(cuid())
+  organizationId  String
+  customerName    String
+  status          OrderStatus @default(PENDING)
+  
+  // Financials
+  totalAmount     Decimal     @db.Decimal(10, 2) // Revenue
+  totalCost       Decimal     @db.Decimal(10, 2) // Material Cost
+  totalCommission Decimal     @db.Decimal(10, 2) // Commission
+  profit          Decimal     @db.Decimal(10, 2) // Profit
+  margin          Decimal     @db.Decimal(5, 2)  // Margin %
+  
+  commissionRate  Decimal     @default(0) @db.Decimal(5, 2) // %
+  wastePercentage Decimal     @default(0) @db.Decimal(5, 2) // %
+
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  items           OrderItem[]
+
+  @@index([organizationId])
+}
+
+model OrderItem {
+  id              String      @id @default(cuid())
+  orderId         String
+  order           Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  
+  serviceTypeId   String
+  serviceType     ServiceType @relation(fields: [serviceTypeId], references: [id])
+  
+  materialId      String?
+  material        Material?   @relation(fields: [materialId], references: [id])
+  
+  width           Decimal     @default(0) @db.Decimal(10, 2) // in meters
+  height          Decimal     @default(0) @db.Decimal(10, 2) // in meters
+  quantity        Int         @default(1)
+  
+  price           Decimal     @db.Decimal(10, 2) // Price for this item (revenue)
+  cost            Decimal     @db.Decimal(10, 2) // Material cost for this item
+
+  @@index([orderId])
+  @@index([serviceTypeId])
+  @@index([materialId])
+}
+
+model OrganizationSettings {
+  id              String   @id @default(cuid())
+  organizationId  String   @unique
+  businessName    String?
+  address         String?
+  phone           String?
+  email           String?
+  taxId           String?  // CNPJ or CPF
+  logoUrl         String?
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  @@index([organizationId])
+}
