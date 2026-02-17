@@ -221,4 +221,155 @@ export const orderRouter = createTRPCRouter({
                 },
             });
         }),
+
+    delete: protectedProcedure
+        .input(z.object({ id: z.string() }))
+        .mutation(async ({ ctx, input }) => {
+            if (!ctx.auth.orgId) return null;
+
+            const order = await ctx.prisma.order.findUnique({
+                where: { id: input.id },
+            });
+
+            if (!order || order.organizationId !== ctx.auth.orgId) {
+                throw new TRPCError({ code: "NOT_FOUND" });
+            }
+
+            return ctx.prisma.order.delete({
+                where: { id: input.id },
+            });
+        }),
+
+    update: protectedProcedure
+        .input(
+            z.object({
+                id: z.string(),
+                customerName: z.string().min(1),
+                items: z.array(orderItemSchema),
+                commissionRate: z.number().default(0),
+                wastePercentage: z.number().default(0),
+            })
+        )
+        .mutation(async ({ ctx, input }) => {
+            if (!ctx.auth.orgId) {
+                throw new TRPCError({ code: "UNAUTHORIZED" });
+            }
+
+            // 1. Verify ownership
+            const existingOrder = await ctx.prisma.order.findUnique({
+                where: { id: input.id },
+            });
+
+            if (!existingOrder || existingOrder.organizationId !== ctx.auth.orgId) {
+                throw new TRPCError({ code: "NOT_FOUND" });
+            }
+
+            // 2. Prepare data for calculation
+            const materials = await ctx.prisma.material.findMany({
+                where: {
+                    id: { in: input.items.map(i => i.materialId).filter((id): id is string => !!id) },
+                    organizationId: ctx.auth.orgId,
+                }
+            });
+
+            const serviceTypes = await ctx.prisma.serviceType.findMany({
+                where: {
+                    id: { in: input.items.map(i => i.serviceTypeId) },
+                    organizationId: ctx.auth.orgId,
+                }
+            });
+
+            const calcItems = input.items.map(item => {
+                const material = materials.find(m => m.id === item.materialId);
+                const serviceType = serviceTypes.find(st => st.id === item.serviceTypeId);
+
+                if (!serviceType) {
+                    throw new TRPCError({
+                        code: "BAD_REQUEST",
+                        message: `Service Type ${item.serviceTypeId} not found or missing access`
+                    });
+                }
+
+                return {
+                    width: item.width,
+                    height: item.height,
+                    quantity: item.quantity,
+                    billingType: serviceType.billingType,
+                    unitPrice: item.unitPrice,
+                    materialStop: material ? {
+                        costPerSqMeter: Number(material.costPerSqMeter)
+                    } : undefined
+                };
+            });
+
+            // 3. Calculate Financials
+            const result = calculateOrder({
+                items: calcItems,
+                commissionRate: input.commissionRate,
+                wastePercentage: input.wastePercentage
+            });
+
+            // 4. Update DB
+            // We use a transaction to delete old items and create new ones (simplest way to update nested array)
+            return ctx.prisma.$transaction(async (tx) => {
+                // Delete existing items
+                await tx.orderItem.deleteMany({
+                    where: { orderId: input.id }
+                });
+
+                // Update order and create new items
+                return tx.order.update({
+                    where: { id: input.id },
+                    data: {
+                        customerName: input.customerName,
+                        totalAmount: result.totalRevenue,
+                        totalCost: result.totalMaterialCost,
+                        totalCommission: result.totalCommission,
+                        profit: result.grossProfit,
+                        margin: result.margin,
+                        commissionRate: input.commissionRate,
+                        wastePercentage: input.wastePercentage,
+                        items: {
+                            create: input.items.map((item, index) => {
+                                const calcItem = result.items[index];
+                                return {
+                                    serviceTypeId: item.serviceTypeId,
+                                    materialId: item.materialId,
+                                    width: item.width,
+                                    height: item.height,
+                                    quantity: item.quantity,
+                                    price: calcItem.revenue,
+                                    cost: calcItem.materialCost,
+                                };
+                            })
+                        }
+                    },
+                });
+            });
+        }),
+
+    updateStatus: protectedProcedure
+        .input(z.object({
+            id: z.string(),
+            status: z.enum(["PENDING", "IN_PROGRESS", "COMPLETED", "CANCELLED"])
+        }))
+        .mutation(async ({ ctx, input }) => {
+            if (!ctx.auth.orgId) {
+                throw new TRPCError({ code: "UNAUTHORIZED" });
+            }
+
+            const order = await ctx.prisma.order.findUnique({
+                where: { id: input.id },
+            });
+
+            if (!order || order.organizationId !== ctx.auth.orgId) {
+                throw new TRPCError({ code: "NOT_FOUND" });
+            }
+
+            return ctx.prisma.order.update({
+                where: { id: input.id },
+                data: { status: input.status }
+            });
+        }),
 });
+

@@ -12,11 +12,30 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
-import { Plus } from "lucide-react";
+import { Plus, Edit, Trash2, MoreHorizontal } from "lucide-react";
 import { format } from "date-fns";
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 export default function OrdersPage() {
+    const utils = api.useUtils();
     const { data: orders, isLoading } = api.order.getAll.useQuery();
+
+    const deleteOrder = api.order.delete.useMutation({
+        onSuccess: () => {
+            utils.order.getAll.invalidate();
+        },
+    });
+
+    const handleDelete = (id: string) => {
+        if (confirm("Tem certeza que deseja excluir esta ordem?")) {
+            deleteOrder.mutate({ id });
+        }
+    };
 
     return (
         <div className="space-y-6">
@@ -65,9 +84,27 @@ export default function OrdersPage() {
                                     <TableCell className="text-green-600 font-medium">R$ {Number(order.profit).toFixed(2)}</TableCell>
                                     <TableCell>{Number(order.margin).toFixed(1)}%</TableCell>
                                     <TableCell>
-                                        <Button variant="ghost" size="sm" asChild>
-                                            <Link href={`/orders/${order.id}`}>Ver</Link>
-                                        </Button>
+                                        <DropdownMenu>
+                                            <DropdownMenuTrigger asChild>
+                                                <Button variant="ghost" className="h-8 w-8 p-0">
+                                                    <MoreHorizontal className="h-4 w-4" />
+                                                </Button>
+                                            </DropdownMenuTrigger>
+                                            <DropdownMenuContent align="end">
+                                                <DropdownMenuItem asChild>
+                                                    <Link href={`/orders/${order.id}`}>Ver Detalhes</Link>
+                                                </DropdownMenuItem>
+                                                <DropdownMenuItem asChild>
+                                                    <Link href={`/orders/${order.id}/edit`}>Editar</Link>
+                                                </DropdownMenuItem>
+                                                <DropdownMenuItem
+                                                    className="text-red-600"
+                                                    onClick={() => handleDelete(order.id)}
+                                                >
+                                                    Excluir
+                                                </DropdownMenuItem>
+                                            </DropdownMenuContent>
+                                        </DropdownMenu>
                                     </TableCell>
                                 </TableRow>
                             ))
@@ -78,3 +115,4 @@ export default function OrdersPage() {
         </div>
     );
 }
+

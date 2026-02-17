@@ -1,0 +1,10 @@
+node_modules
+.next
+.git
+postgres-data
+*.log
+.env
+.eslintignore
+eslint.config.mjs
+README.md
+docs

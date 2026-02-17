@@ -69,4 +69,46 @@ export const materialRouter = createTRPCRouter({
                 where: { id: input.id },
             });
         }),
+
+    update: protectedProcedure
+        .input(
+            z.object({
+                id: z.string(),
+                name: z.string().min(1),
+                pricePerRoll: z.number().min(0),
+                rollLength: z.number().min(0),
+                width: z.number().min(0),
+            })
+        )
+        .mutation(async ({ ctx, input }) => {
+            if (!ctx.auth.orgId) {
+                throw new TRPCError({ code: "UNAUTHORIZED", message: "No Organization Selected" });
+            }
+
+            const material = await ctx.prisma.material.findUnique({
+                where: { id: input.id },
+            });
+
+            if (!material || material.organizationId !== ctx.auth.orgId) {
+                throw new TRPCError({ code: "NOT_FOUND" });
+            }
+
+            const costs = calculateMaterialCost(
+                input.pricePerRoll,
+                input.rollLength,
+                input.width
+            );
+
+            return ctx.prisma.material.update({
+                where: { id: input.id },
+                data: {
+                    name: input.name,
+                    pricePerRoll: input.pricePerRoll,
+                    rollLength: input.rollLength,
+                    width: input.width,
+                    costPerLinearMeter: costs.costPerLinearMeter,
+                    costPerSqMeter: costs.costPerSqMeter,
+                },
+            });
+        }),
 });

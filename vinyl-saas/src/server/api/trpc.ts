@@ -80,13 +80,22 @@ export const protectedProcedure = t.procedure.use(({ ctx, next }) => {
         throw new TRPCError({ code: "UNAUTHORIZED" });
     }
 
-    // Multi-tenant check: Ensure organization is selected if needed per requirements
-    // For now, we just ensure user is authenticated. 
-    // Routers will handle organizationId check via ctx.auth.orgId which Clerk provides.
+    console.log("Protected Procedure Auth Check:", { userId: ctx.auth.userId, orgId: ctx.auth.orgId });
+
+    if (!ctx.auth.orgId) {
+        throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "No Organization Selected. Please create or select an organization."
+        });
+    }
 
     return next({
         ctx: {
-            auth: ctx.auth,
+            // Infers the `auth` as non-nullable
+            auth: {
+                ...ctx.auth,
+                orgId: ctx.auth.orgId,
+            },
         },
     });
 });

@@ -16,7 +16,7 @@ const routes = [
     {
         label: "Dashboard",
         icon: LayoutDashboard,
-        href: "/dashboard",
+        href: "/",
         color: "text-sky-500",
     },
     {
@@ -51,7 +51,7 @@ export function Sidebar() {
     return (
         <div className="space-y-4 py-4 flex flex-col h-full bg-slate-900 text-white">
             <div className="px-3 py-2 flex-1">
-                <Link href="/dashboard" className="flex items-center pl-3 mb-14">
+                <Link href="/" className="flex items-center pl-3 mb-14">
                     <h1 className="text-2xl font-bold">Vinyl SaaS</h1>
                 </Link>
                 <div className="space-y-1">

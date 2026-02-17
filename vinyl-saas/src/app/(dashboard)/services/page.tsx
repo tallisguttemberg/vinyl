@@ -1,27 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import * as z from "zod";
 import { api } from "@/trpc/react";
 import { Button } from "@/components/ui/button";
-import {
-    Form,
-    FormControl,
-    FormField,
-    FormItem,
-    FormLabel,
-    FormMessage,
-} from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from "@/components/ui/select";
 import {
     Table,
     TableBody,
@@ -37,50 +18,59 @@ import {
     DialogTitle,
     DialogTrigger,
 } from "@/components/ui/dialog";
-import { Plus, Trash2 } from "lucide-react";
-
-const formSchema = z.object({
-    name: z.string().min(1, "Nome é obrigatório"),
-    billingType: z.enum(["FIXED", "PER_M2"]),
-    defaultPrice: z.coerce.number().optional(),
-});
+import { Plus, Trash2, Edit } from "lucide-react";
+import { ServiceTypeForm, ServiceTypeFormValues } from "@/components/services/ServiceTypeForm";
 
 export default function ServicesPage() {
-    const [open, setOpen] = useState(false);
+    const [createOpen, setCreateOpen] = useState(false);
+    const [editOpen, setEditOpen] = useState(false);
+    const [editingService, setEditingService] = useState<{ id: string } & ServiceTypeFormValues | null>(null);
     const utils = api.useUtils();
 
     const { data: services, isLoading } = api.serviceType.getAll.useQuery();
+
     const createService = api.serviceType.create.useMutation({
         onSuccess: () => {
             utils.serviceType.getAll.invalidate();
-            setOpen(false);
-            form.reset();
+            setCreateOpen(false);
         },
     });
+
+    const updateService = api.serviceType.update.useMutation({
+        onSuccess: () => {
+            utils.serviceType.getAll.invalidate();
+            setEditOpen(false);
+            setEditingService(null);
+        },
+    });
+
     const deleteService = api.serviceType.delete.useMutation({
         onSuccess: () => {
             utils.serviceType.getAll.invalidate();
         },
     });
 
-    const form = useForm<z.infer<typeof formSchema>>({
-        resolver: zodResolver(formSchema) as any,
-        defaultValues: {
-            name: "",
-            billingType: "FIXED",
-            defaultPrice: 0,
-        },
-    });
-
-    function onSubmit(values: z.infer<typeof formSchema>) {
+    function handleCreate(values: ServiceTypeFormValues) {
         createService.mutate(values);
+    }
+
+    function handleUpdate(values: ServiceTypeFormValues) {
+        if (editingService) {
+            updateService.mutate({ id: editingService.id, ...values });
+        }
+    }
+
+    function handleDelete(id: string) {
+        if (window.confirm("Tem certeza que deseja excluir este tipo de serviço?")) {
+            deleteService.mutate({ id });
+        }
     }
 
     return (
         <div className="space-y-6">
             <div className="flex items-center justify-between">
                 <h2 className="text-3xl font-bold tracking-tight">Tipos de Serviço</h2>
-                <Dialog open={open} onOpenChange={setOpen}>
+                <Dialog open={createOpen} onOpenChange={setCreateOpen}>
                     <DialogTrigger asChild>
                         <Button>
                             <Plus className="mr-2 h-4 w-4" /> Novo Serviço
@@ -90,60 +80,10 @@ export default function ServicesPage() {
                         <DialogHeader>
                             <DialogTitle>Adicionar Tipo de Serviço</DialogTitle>
                         </DialogHeader>
-                        <Form {...form}>
-                            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                                <FormField
-                                    control={form.control}
-                                    name="name"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel>Nome</FormLabel>
-                                            <FormControl>
-                                                <Input placeholder="Ex: Adesivado de Parede" {...field} />
-                                            </FormControl>
-                                            <FormMessage />
-                                        </FormItem>
-                                    )}
-                                />
-                                <FormField
-                                    control={form.control}
-                                    name="billingType"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel>Tipo de Cobrança</FormLabel>
-                                            <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                                <FormControl>
-                                                    <SelectTrigger>
-                                                        <SelectValue placeholder="Selecione o tipo" />
-                                                    </SelectTrigger>
-                                                </FormControl>
-                                                <SelectContent>
-                                                    <SelectItem value="FIXED">Preço Fixo (por item)</SelectItem>
-                                                    <SelectItem value="PER_M2">Por m²</SelectItem>
-                                                </SelectContent>
-                                            </Select>
-                                            <FormMessage />
-                                        </FormItem>
-                                    )}
-                                />
-                                <FormField
-                                    control={form.control}
-                                    name="defaultPrice"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel>Preço Padrão (Opcional)</FormLabel>
-                                            <FormControl>
-                                                <Input type="number" step="0.01" {...field} />
-                                            </FormControl>
-                                            <FormMessage />
-                                        </FormItem>
-                                    )}
-                                />
-                                <Button type="submit" className="w-full" disabled={createService.isPending}>
-                                    {createService.isPending ? "Salvando..." : "Salvar"}
-                                </Button>
-                            </form>
-                        </Form>
+                        <ServiceTypeForm
+                            onSubmit={handleCreate}
+                            isPending={createService.isPending}
+                        />
                     </DialogContent>
                 </Dialog>
             </div>
@@ -155,7 +95,7 @@ export default function ServicesPage() {
                             <TableHead>Nome</TableHead>
                             <TableHead>Tipo de Cobrança</TableHead>
                             <TableHead>Preço Padrão</TableHead>
-                            <TableHead className="w-[100px]">Ações</TableHead>
+                            <TableHead className="w-[120px]">Ações</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -180,14 +120,31 @@ export default function ServicesPage() {
                                             : "-"}
                                     </TableCell>
                                     <TableCell>
-                                        <Button
-                                            variant="ghost"
-                                            size="icon"
-                                            onClick={() => deleteService.mutate({ id: service.id })}
-                                            disabled={deleteService.isPending}
-                                        >
-                                            <Trash2 className="h-4 w-4 text-red-500" />
-                                        </Button>
+                                        <div className="flex items-center gap-2">
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                onClick={() => {
+                                                    setEditingService({
+                                                        id: service.id,
+                                                        name: service.name,
+                                                        billingType: service.billingType as "FIXED" | "PER_M2",
+                                                        defaultPrice: Number(service.defaultPrice),
+                                                    });
+                                                    setEditOpen(true);
+                                                }}
+                                            >
+                                                <Edit className="h-4 w-4" />
+                                            </Button>
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                onClick={() => handleDelete(service.id)}
+                                                disabled={deleteService.isPending}
+                                            >
+                                                <Trash2 className="h-4 w-4 text-red-500" />
+                                            </Button>
+                                        </div>
                                     </TableCell>
                                 </TableRow>
                             ))
@@ -195,6 +152,22 @@ export default function ServicesPage() {
                     </TableBody>
                 </Table>
             </div>
+
+            <Dialog open={editOpen} onOpenChange={setEditOpen}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Editar Tipo de Serviço</DialogTitle>
+                    </DialogHeader>
+                    {editingService && (
+                        <ServiceTypeForm
+                            initialValues={editingService}
+                            onSubmit={handleUpdate}
+                            isPending={updateService.isPending}
+                        />
+                    )}
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }
+

@@ -1,7 +1,35 @@
 services:
+  app:
+    build:
+      context: .
+      args:
+        - NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_Y3JlZGlibGUtcG9ycG9pc2UtMjQuY2xlcmsuYWNjb3VudHMuZGV2JA
+        - CLERK_SECRET_KEY=sk_test_0HpE0dT4qNNGTOGU1VtW0cxCAMoCbMvihYRvnnHx5t
+        - NEXT_PUBLIC_CLERK_SIGN_IN_URL=/sign-in
+        - NEXT_PUBLIC_CLERK_SIGN_UP_URL=/sign-up
+        - NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL=/dashboard
+        - NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL=/dashboard
+    container_name: vinyl-saas-app
+
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/adesivagem
+      - NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_Y3JlZGlibGUtcG9ycG9pc2UtMjQuY2xlcmsuYWNjb3VudHMuZGV2JA
+      - CLERK_SECRET_KEY=sk_test_0HpE0dT4qNNGTOGU1VtW0cxCAMoCbMvihYRvnnHx5t
+      - NEXT_PUBLIC_CLERK_SIGN_IN_URL=/sign-in
+      - NEXT_PUBLIC_CLERK_SIGN_UP_URL=/sign-up
+      - NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL=/dashboard
+      - NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL=/dashboard
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   postgres:
     image: postgres:15-alpine
     container_name: vinyl-saas-postgres
+    restart: always
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
@@ -10,3 +38,8 @@ services:
       - "5433:5432"
     volumes:
       - ./postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U postgres -d adesivagem" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
