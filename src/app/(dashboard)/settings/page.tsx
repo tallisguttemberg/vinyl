@@ -40,6 +40,10 @@ export default function SettingsPage() {
             alert("Configurações salvas com sucesso!");
             utils.organizationSettings.getSettings.invalidate();
         },
+        onError: (error) => {
+            console.error("Erro ao salvar:", error);
+            alert(`Erro ao salvar: ${error.message}`);
+        },
     });
 
     const form = useForm<z.infer<typeof formSchema>>({

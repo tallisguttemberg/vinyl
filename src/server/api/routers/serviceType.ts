@@ -57,4 +57,36 @@ export const serviceTypeRouter = createTRPCRouter({
                 where: { id: input.id },
             });
         }),
+
+    update: protectedProcedure
+        .input(
+            z.object({
+                id: z.string(),
+                name: z.string().min(1),
+                billingType: z.enum(["FIXED", "PER_M2"]),
+                defaultPrice: z.number().optional(),
+            })
+        )
+        .mutation(async ({ ctx, input }) => {
+            if (!ctx.auth.orgId) {
+                throw new TRPCError({ code: "UNAUTHORIZED", message: "No Organization Selected" });
+            }
+
+            const serviceType = await ctx.prisma.serviceType.findUnique({
+                where: { id: input.id },
+            });
+
+            if (!serviceType || serviceType.organizationId !== ctx.auth.orgId) {
+                throw new TRPCError({ code: "NOT_FOUND" });
+            }
+
+            return ctx.prisma.serviceType.update({
+                where: { id: input.id },
+                data: {
+                    name: input.name,
+                    billingType: input.billingType,
+                    defaultPrice: input.defaultPrice,
+                },
+            });
+        }),
 });

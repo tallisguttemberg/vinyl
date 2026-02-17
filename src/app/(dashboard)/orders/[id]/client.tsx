@@ -13,7 +13,7 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table";
-import { ArrowLeft, Printer } from "lucide-react";
+import { ArrowLeft, Printer, Edit, Trash2, CheckCircle2, Clock, XCircle } from "lucide-react";
 import Link from "next/link";
 import { format } from "date-fns";
 import { useRouter } from "next/navigation";
@@ -21,7 +21,26 @@ import { useRouter } from "next/navigation";
 export default function OrderDetailsClient({ id }: { id: string }) {
     const { data: order, isLoading } = api.order.getById.useQuery({ id });
     const { data: settings } = api.organizationSettings.getSettings.useQuery();
+    const utils = api.useUtils();
     const router = useRouter();
+
+    const deleteOrder = api.order.delete.useMutation({
+        onSuccess: () => {
+            router.push("/orders");
+        },
+    });
+
+    const updateStatus = api.order.updateStatus.useMutation({
+        onSuccess: () => {
+            utils.order.getById.invalidate({ id });
+        },
+    });
+
+    const handleDelete = () => {
+        if (confirm("Tem certeza que deseja excluir esta ordem?")) {
+            deleteOrder.mutate({ id });
+        }
+    };
 
     if (isLoading) {
         return <div className="p-8 text-center">Carregando detalhes da ordem...</div>;
@@ -38,10 +57,17 @@ export default function OrderDetailsClient({ id }: { id: string }) {
         );
     }
 
+    const statusColors = {
+        PENDING: "secondary",
+        IN_PROGRESS: "default",
+        COMPLETED: "outline",
+        CANCELLED: "destructive",
+    } as const;
+
     return (
         <div className="space-y-6">
             {/* Header */}
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between no-print">
                 <div className="flex items-center gap-4">
                     <Button variant="ghost" size="icon" asChild>
                         <Link href="/orders"><ArrowLeft className="h-4 w-4" /></Link>
@@ -52,9 +78,14 @@ export default function OrderDetailsClient({ id }: { id: string }) {
                     </div>
                 </div>
                 <div className="flex items-center gap-2">
-                    <Badge variant={order.status === 'COMPLETED' ? 'default' : 'secondary'} className="text-lg px-4 py-1">
-                        {order.status}
-                    </Badge>
+                    <Button variant="outline" size="sm" asChild>
+                        <Link href={`/orders/${order.id}/edit`}>
+                            <Edit className="mr-2 h-4 w-4" /> Editar
+                        </Link>
+                    </Button>
+                    <Button variant="destructive" size="sm" onClick={handleDelete}>
+                        <Trash2 className="mr-2 h-4 w-4" /> Excluir
+                    </Button>
                     <Button variant="outline" size="icon" onClick={() => window.print()}>
                         <Printer className="h-4 w-4" />
                     </Button>
@@ -91,8 +122,11 @@ export default function OrderDetailsClient({ id }: { id: string }) {
                 {/* Items List (Left Column) */}
                 <div className="md:col-span-2 space-y-6">
                     <Card>
-                        <CardHeader>
+                        <CardHeader className="flex flex-row items-center justify-between">
                             <CardTitle>Itens do Pedido</CardTitle>
+                            <Badge variant={statusColors[order.status as keyof typeof statusColors]}>
+                                {order.status}
+                            </Badge>
                         </CardHeader>
                         <CardContent>
                             <Table>
@@ -127,6 +161,47 @@ export default function OrderDetailsClient({ id }: { id: string }) {
                                     ))}
                                 </TableBody>
                             </Table>
+                        </CardContent>
+                    </Card>
+
+                    {/* Status Update Card (No Print) */}
+                    <Card className="no-print">
+                        <CardHeader>
+                            <CardTitle className="text-sm font-medium">Atualizar Status</CardTitle>
+                        </CardHeader>
+                        <CardContent className="flex flex-wrap gap-2">
+                            <Button
+                                variant={order.status === 'PENDING' ? 'default' : 'outline'}
+                                size="sm"
+                                onClick={() => updateStatus.mutate({ id, status: 'PENDING' })}
+                                disabled={updateStatus.isPending}
+                            >
+                                <Clock className="mr-2 h-4 w-4" /> Pendente
+                            </Button>
+                            <Button
+                                variant={order.status === 'IN_PROGRESS' ? 'default' : 'outline'}
+                                size="sm"
+                                onClick={() => updateStatus.mutate({ id, status: 'IN_PROGRESS' })}
+                                disabled={updateStatus.isPending}
+                            >
+                                <Clock className="mr-2 h-4 w-4" /> Em Produção
+                            </Button>
+                            <Button
+                                variant={order.status === 'COMPLETED' ? 'default' : 'outline'}
+                                size="sm"
+                                onClick={() => updateStatus.mutate({ id, status: 'COMPLETED' })}
+                                disabled={updateStatus.isPending}
+                            >
+                                <CheckCircle2 className="mr-2 h-4 w-4" /> Finalizado
+                            </Button>
+                            <Button
+                                variant={order.status === 'CANCELLED' ? 'destructive' : 'outline'}
+                                size="sm"
+                                onClick={() => updateStatus.mutate({ id, status: 'CANCELLED' })}
+                                disabled={updateStatus.isPending}
+                            >
+                                <XCircle className="mr-2 h-4 w-4" /> Cancelado
+                            </Button>
                         </CardContent>
                     </Card>
                 </div>
@@ -202,3 +277,4 @@ export default function OrderDetailsClient({ id }: { id: string }) {
         </div>
     );
 }
+
