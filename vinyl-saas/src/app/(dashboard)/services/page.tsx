@@ -34,6 +34,10 @@ export default function ServicesPage() {
             utils.serviceType.getAll.invalidate();
             setCreateOpen(false);
         },
+        onError: (error: any) => {
+            console.error("Erro ao criar serviço:", error);
+            alert("Erro ao criar serviço: " + error.message);
+        }
     });
 
     const updateService = api.serviceType.update.useMutation({
@@ -42,6 +46,10 @@ export default function ServicesPage() {
             setEditOpen(false);
             setEditingService(null);
         },
+        onError: (error: any) => {
+            console.error("Erro ao atualizar serviço:", error);
+            alert("Erro ao atualizar serviço: " + error.message);
+        }
     });
 
     const deleteService = api.serviceType.delete.useMutation({

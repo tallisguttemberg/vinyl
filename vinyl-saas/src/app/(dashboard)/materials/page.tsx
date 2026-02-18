@@ -34,6 +34,10 @@ export default function MaterialsPage() {
             utils.material.getAll.invalidate();
             setCreateOpen(false);
         },
+        onError: (error: any) => {
+            console.error("Erro ao criar material:", error);
+            alert("Erro ao criar material: " + error.message);
+        }
     });
 
     const updateMaterial = api.material.update.useMutation({
@@ -42,6 +46,10 @@ export default function MaterialsPage() {
             setEditOpen(false);
             setEditingMaterial(null);
         },
+        onError: (error: any) => {
+            console.error("Erro ao atualizar material:", error);
+            alert("Erro ao atualizar material: " + error.message);
+        }
     });
 
     const deleteMaterial = api.material.delete.useMutation({
@@ -95,6 +103,7 @@ export default function MaterialsPage() {
                             <TableHead>Nome</TableHead>
                             <TableHead>Preço Bobina</TableHead>
                             <TableHead>Dimensões</TableHead>
+                            <TableHead>Estoque (m²)</TableHead>
                             <TableHead>Custo Linear/m</TableHead>
                             <TableHead>Custo m²</TableHead>
                             <TableHead className="w-[120px]">Ações</TableHead>
@@ -103,11 +112,11 @@ export default function MaterialsPage() {
                     <TableBody>
                         {isLoading ? (
                             <TableRow>
-                                <TableCell colSpan={6} className="text-center">Carregando...</TableCell>
+                                <TableCell colSpan={7} className="text-center">Carregando...</TableCell>
                             </TableRow>
                         ) : materials?.length === 0 ? (
                             <TableRow>
-                                <TableCell colSpan={6} className="text-center">Nenhum material cadastrado.</TableCell>
+                                <TableCell colSpan={7} className="text-center">Nenhum material cadastrado.</TableCell>
                             </TableRow>
                         ) : (
                             materials?.map((material) => (
@@ -115,6 +124,11 @@ export default function MaterialsPage() {
                                     <TableCell className="font-medium">{material.name}</TableCell>
                                     <TableCell>R$ {Number(material.pricePerRoll).toFixed(2)}</TableCell>
                                     <TableCell>{Number(material.width)}m x {Number(material.rollLength)}m</TableCell>
+                                    <TableCell>
+                                        <span className={`font-semibold ${Number(material.stockAmount) < 5 ? 'text-red-500' : 'text-green-600'}`}>
+                                            {Number(material.stockAmount).toFixed(2)} m²
+                                        </span>
+                                    </TableCell>
                                     <TableCell>R$ {Number(material.costPerLinearMeter).toFixed(2)}</TableCell>
                                     <TableCell>R$ {Number(material.costPerSqMeter).toFixed(2)}</TableCell>
                                     <TableCell>
@@ -129,6 +143,7 @@ export default function MaterialsPage() {
                                                         pricePerRoll: Number(material.pricePerRoll),
                                                         rollLength: Number(material.rollLength),
                                                         width: Number(material.width),
+                                                        stockAmount: Number(material.stockAmount),
                                                     });
                                                     setEditOpen(true);
                                                 }}

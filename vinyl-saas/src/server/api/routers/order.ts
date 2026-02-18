@@ -45,20 +45,30 @@ export const orderRouter = createTRPCRouter({
             },
         });
 
+        // Current totals (Revenue and Costs always show full picture)
         const totalRevenue = orders.reduce((acc, order) => acc + Number(order.totalAmount), 0);
         const totalMaterialCost = orders.reduce((acc, order) => acc + Number(order.totalCost), 0);
         const totalCommission = orders.reduce((acc, order) => acc + Number(order.totalCommission), 0);
-        const grossProfit = orders.reduce((acc, order) => acc + Number(order.profit), 0);
 
-        const margin = totalRevenue > 0 ? (grossProfit / totalRevenue) * 100 : 0;
+        // Gross Profit is only from COMPLETED orders
+        const completedOrders = orders.filter(o => o.status === "COMPLETED");
+        const realizedProfit = completedOrders.reduce((acc, order) => acc + Number(order.profit), 0);
+
+        // Projected Profit from other active orders
+        const activeOrders = orders.filter(o => o.status === "PENDING" || o.status === "IN_PROGRESS");
+        const projectedProfit = activeOrders.reduce((acc, order) => acc + Number(order.profit), 0);
+
+        const margin = totalRevenue > 0 ? (realizedProfit / totalRevenue) * 100 : 0;
 
         return {
             totalRevenue,
             totalMaterialCost,
             totalCommission,
-            grossProfit,
+            grossProfit: realizedProfit, // Realized profit
+            projectedProfit,
             margin,
             orderCount: orders.length,
+            completedCount: completedOrders.length,
         };
     }),
 
@@ -360,10 +370,30 @@ export const orderRouter = createTRPCRouter({
 
             const order = await ctx.prisma.order.findUnique({
                 where: { id: input.id },
+                include: { items: true }
             });
 
             if (!order || order.organizationId !== ctx.auth.orgId) {
                 throw new TRPCError({ code: "NOT_FOUND" });
+            }
+
+            // Logic for stock deduction
+            if (input.status === "COMPLETED" && order.status !== "COMPLETED") {
+                await ctx.prisma.$transaction(async (tx) => {
+                    for (const item of order.items) {
+                        if (item.materialId) {
+                            const areaUsed = Number(item.width) * Number(item.height) * item.quantity;
+                            await tx.material.update({
+                                where: { id: item.materialId },
+                                data: {
+                                    stockAmount: {
+                                        decrement: areaUsed
+                                    }
+                                }
+                            });
+                        }
+                    }
+                });
             }
 
             return ctx.prisma.order.update({
