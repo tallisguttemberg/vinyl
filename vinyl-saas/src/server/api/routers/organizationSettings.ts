@@ -16,7 +16,7 @@ export const organizationSettingsRouter = createTRPCRouter({
                 phone: z.string().optional(),
                 email: z.string().email().optional().or(z.literal("")),
                 taxId: z.string().optional(),
-                // logoUrl: z.string().url().optional(), // Omitting for now as file upload is complex
+                logoUrl: z.string().optional(),
             }),
         )
         .mutation(async ({ ctx, input }) => {

@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
 
 export const metadata: Metadata = {
-  title: "Vinyl SaaS",
+  title: "Vinyl",
   description: "SaaS for vinyl wrapping businesses",
   icons: [{ rel: "icon", url: "/favicon.ico" }],
 };

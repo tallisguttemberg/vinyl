@@ -3,7 +3,10 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useOrganization } from "@clerk/nextjs";
 import { cn } from "@/lib/utils";
+import Image from "next/image";
+import { api } from "@/trpc/react";
 import {
     LayoutDashboard,
     Package,
@@ -47,13 +50,45 @@ const routes = [
 
 export function Sidebar() {
     const pathname = usePathname();
+    const { organization } = useOrganization();
+    const { data: settings } = api.organizationSettings.getSettings.useQuery();
+
+    const logo = settings?.logoUrl || organization?.imageUrl;
 
     return (
         <div className="space-y-4 py-4 flex flex-col h-full bg-slate-900 text-white">
             <div className="px-3 py-2 flex-1">
-                <Link href="/" className="flex items-center pl-3 mb-14">
-                    <h1 className="text-2xl font-bold">Vinyl SaaS</h1>
+                <Link href="/" className="flex items-center pl-3 mb-8">
+                    <h1 className="text-2xl font-bold">Vinyl</h1>
                 </Link>
+
+                {(organization || settings) && (
+                    <div className="flex items-center gap-x-3 px-3 mb-10 pb-4 border-b border-white/10">
+                        {logo ? (
+                            <div className="relative h-8 w-8">
+                                <Image
+                                    fill
+                                    src={logo}
+                                    alt="Logo"
+                                    className="rounded-md object-contain"
+                                />
+                            </div>
+                        ) : (
+                            <div className="h-8 w-8 bg-white/10 rounded-md flex items-center justify-center">
+                                <Building2 className="h-4 w-4 text-zinc-400" />
+                            </div>
+                        )}
+                        <div className="flex flex-col">
+                            <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">
+                                Empresa
+                            </p>
+                            <p className="text-sm font-bold text-white truncate max-w-[180px]">
+                                {settings?.businessName || organization?.name || "Minha Empresa"}
+                            </p>
+                        </div>
+                    </div>
+                )}
+
                 <div className="space-y-1">
                     {routes.map((route) => (
                         <Link
