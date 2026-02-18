@@ -25,6 +25,7 @@ export const materialRouter = createTRPCRouter({
                 pricePerRoll: z.number().min(0),
                 rollLength: z.number().min(0),
                 width: z.number().min(0),
+                stockAmount: z.number().default(0),
             })
         )
         .mutation(async ({ ctx, input }) => {
@@ -47,6 +48,7 @@ export const materialRouter = createTRPCRouter({
                     width: input.width,
                     costPerLinearMeter: costs.costPerLinearMeter,
                     costPerSqMeter: costs.costPerSqMeter,
+                    stockAmount: input.stockAmount,
                 },
             });
         }),
@@ -78,6 +80,7 @@ export const materialRouter = createTRPCRouter({
                 pricePerRoll: z.number().min(0),
                 rollLength: z.number().min(0),
                 width: z.number().min(0),
+                stockAmount: z.number().optional(),
             })
         )
         .mutation(async ({ ctx, input }) => {
@@ -108,6 +111,7 @@ export const materialRouter = createTRPCRouter({
                     width: input.width,
                     costPerLinearMeter: costs.costPerLinearMeter,
                     costPerSqMeter: costs.costPerSqMeter,
+                    stockAmount: input.stockAmount,
                 },
             });
         }),

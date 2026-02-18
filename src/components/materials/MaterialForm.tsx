@@ -20,6 +20,7 @@ const formSchema = z.object({
     pricePerRoll: z.coerce.number().min(0, "Deve ser maior ou igual a 0"),
     rollLength: z.coerce.number().min(0.1, "Deve ser maior que 0"),
     width: z.coerce.number().min(0.1, "Deve ser maior que 0"),
+    stockAmount: z.coerce.number().min(0, "Deve ser maior ou igual a 0"),
 });
 
 export type MaterialFormValues = z.infer<typeof formSchema>;
@@ -38,6 +39,7 @@ export function MaterialForm({ initialValues, onSubmit, isPending }: MaterialFor
             pricePerRoll: 0,
             rollLength: 0,
             width: 0,
+            stockAmount: 0,
         },
     });
 
@@ -57,19 +59,34 @@ export function MaterialForm({ initialValues, onSubmit, isPending }: MaterialFor
                         </FormItem>
                     )}
                 />
-                <FormField
-                    control={form.control}
-                    name="pricePerRoll"
-                    render={({ field }) => (
-                        <FormItem>
-                            <FormLabel>Preço da Bobina (R$)</FormLabel>
-                            <FormControl>
-                                <Input type="number" step="0.01" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                        </FormItem>
-                    )}
-                />
+                <div className="grid grid-cols-2 gap-4">
+                    <FormField
+                        control={form.control}
+                        name="pricePerRoll"
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>Preço da Bobina (R$)</FormLabel>
+                                <FormControl>
+                                    <Input type="number" step="0.01" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                    <FormField
+                        control={form.control}
+                        name="stockAmount"
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>Estoque Inicial / Atual (m²)</FormLabel>
+                                <FormControl>
+                                    <Input type="number" step="0.01" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                </div>
                 <div className="grid grid-cols-2 gap-4">
                     <FormField
                         control={form.control}

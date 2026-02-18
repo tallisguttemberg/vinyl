@@ -76,12 +76,20 @@ export function OrderForm({ initialValues, orderId, isEditing = false }: OrderFo
         onSuccess: () => {
             router.push("/orders");
         },
+        onError: (error: any) => {
+            console.error("Erro ao criar ordem:", error);
+            alert("Erro ao criar ordem: " + error.message);
+        }
     });
 
     const updateOrder = api.order.update.useMutation({
         onSuccess: () => {
             router.push(`/orders/${orderId}`);
         },
+        onError: (error: any) => {
+            console.error("Erro ao atualizar ordem:", error);
+            alert("Erro ao atualizar ordem: " + error.message);
+        }
     });
 
     const calculateOrder = api.order.calculate.useMutation({
@@ -131,6 +139,7 @@ export function OrderForm({ initialValues, orderId, isEditing = false }: OrderFo
     }
 
     function onSubmit(values: OrderFormValues) {
+        console.log("Submitting form with values:", values);
         if (isEditing && orderId) {
             updateOrder.mutate({
                 id: orderId,

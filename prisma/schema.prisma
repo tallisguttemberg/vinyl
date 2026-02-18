@@ -19,6 +19,7 @@ model Material {
   width           Decimal  @db.Decimal(10, 2) // in meters
   costPerLinearMeter Decimal @db.Decimal(10, 2)
   costPerSqMeter  Decimal  @db.Decimal(10, 2)
+  stockAmount     Decimal  @default(0) @db.Decimal(10, 2)
   
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
