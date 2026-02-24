@@ -19,7 +19,7 @@ app.get('/health', (req, res) => {
 
 // tRPC bridge
 app.use(
-    '/trpc',
+    '/api/trpc',
     createExpressMiddleware({
         router: appRouter,
         createContext: async ({ req, res }) => {
@@ -29,7 +29,7 @@ app.use(
                 if (Array.isArray(value)) {
                     value.forEach((v) => headers.append(key, v));
                 } else if (value) {
-                    headers.set(key, value);
+                    headers.set(key, value as string);
                 }
             });
             return createTRPCContext({ headers });
