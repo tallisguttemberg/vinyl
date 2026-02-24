@@ -1,0 +1,118 @@
+
+import { z } from "zod";
+import { createTRPCRouter, protectedProcedure } from "../trpc";
+import { calculateMaterialCost } from "../../../lib/calculations";
+import { TRPCError } from "@trpc/server";
+
+export const materialRouter = createTRPCRouter({
+    getAll: protectedProcedure.query(async ({ ctx }) => {
+        if (!ctx.session.orgId) return [];
+
+        return ctx.prisma.material.findMany({
+            where: {
+                organizationId: ctx.session.orgId,
+            },
+            orderBy: {
+                createdAt: "desc",
+            },
+        });
+    }),
+
+    create: protectedProcedure
+        .input(
+            z.object({
+                name: z.string().min(1),
+                pricePerRoll: z.number().min(0),
+                rollLength: z.number().min(0),
+                width: z.number().min(0),
+                stockAmount: z.number().default(0),
+            })
+        )
+        .mutation(async ({ ctx, input }) => {
+            if (!ctx.session.orgId) {
+                throw new TRPCError({ code: "UNAUTHORIZED", message: "No Organization Selected" });
+            }
+
+            const costs = calculateMaterialCost(
+                input.pricePerRoll,
+                input.rollLength,
+                input.width
+            );
+
+            return ctx.prisma.material.create({
+                data: {
+                    organizationId: ctx.session.orgId,
+                    name: input.name,
+                    pricePerRoll: input.pricePerRoll,
+                    rollLength: input.rollLength,
+                    width: input.width,
+                    costPerLinearMeter: costs.costPerLinearMeter,
+                    costPerSqMeter: costs.costPerSqMeter,
+                    stockAmount: input.stockAmount,
+                },
+            });
+        }),
+
+    delete: protectedProcedure
+        .input(z.object({ id: z.string() }))
+        .mutation(async ({ ctx, input }) => {
+            if (!ctx.session.orgId) return null;
+
+            // Verify ownership
+            const material = await ctx.prisma.material.findUnique({
+                where: { id: input.id },
+            });
+
+            if (!material || material.organizationId !== ctx.session.orgId) {
+                throw new TRPCError({ code: "NOT_FOUND" });
+            }
+
+            return ctx.prisma.material.delete({
+                where: { id: input.id },
+            });
+        }),
+
+    update: protectedProcedure
+        .input(
+            z.object({
+                id: z.string(),
+                name: z.string().min(1),
+                pricePerRoll: z.number().min(0),
+                rollLength: z.number().min(0),
+                width: z.number().min(0),
+                stockAmount: z.number().optional(),
+            })
+        )
+        .mutation(async ({ ctx, input }) => {
+            if (!ctx.session.orgId) {
+                throw new TRPCError({ code: "UNAUTHORIZED", message: "No Organization Selected" });
+            }
+
+            const material = await ctx.prisma.material.findUnique({
+                where: { id: input.id },
+            });
+
+            if (!material || material.organizationId !== ctx.session.orgId) {
+                throw new TRPCError({ code: "NOT_FOUND" });
+            }
+
+            const costs = calculateMaterialCost(
+                input.pricePerRoll,
+                input.rollLength,
+                input.width
+            );
+
+            return ctx.prisma.material.update({
+                where: { id: input.id },
+                data: {
+                    name: input.name,
+                    pricePerRoll: input.pricePerRoll,
+                    rollLength: input.rollLength,
+                    width: input.width,
+                    costPerLinearMeter: costs.costPerLinearMeter,
+                    costPerSqMeter: costs.costPerSqMeter,
+                    stockAmount: input.stockAmount,
+                },
+            });
+        }),
+});

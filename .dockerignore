@@ -1,7 +1,8 @@
-node_modules
-.next
+**/node_modules
+**/.next
 .git
 postgres-data
+database-data
 *.log
 .env
 .eslintignore

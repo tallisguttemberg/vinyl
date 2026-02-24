@@ -1,45 +1,76 @@
 services:
-  app:
+  traefik:
+    image: traefik:latest
+    container_name: traefik
+    command:
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+    ports:
+      - "80:80"
+      - "8080:8080" # Dashboard
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    environment:
+      - DOCKER_API_VERSION=1.44
+    networks:
+      - vinyl-net
+
+  frontend:
     build:
       context: .
-      args:
-        - NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_Y3JlZGlibGUtcG9ycG9pc2UtMjQuY2xlcmsuYWNjb3VudHMuZGV2JA
-        - CLERK_SECRET_KEY=sk_test_0HpE0dT4qNNGTOGU1VtW0cxCAMoCbMvihYRvnnHx5t
-        - NEXT_PUBLIC_CLERK_SIGN_IN_URL=/sign-in
-        - NEXT_PUBLIC_CLERK_SIGN_UP_URL=/sign-up
-        - NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL=/dashboard
-        - NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL=/dashboard
-    container_name: vinyl-saas-app
-
+      dockerfile: frontend/Dockerfile
+    container_name: vinyl-frontend
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.frontend.rule=PathPrefix(`/`)"
+      - "traefik.http.routers.frontend.entrypoints=web"
+      - "traefik.http.services.frontend.loadbalancer.server.port=3000"
     restart: always
-    ports:
-      - "3000:3000"
+    networks:
+      - vinyl-net
+    depends_on:
+      - backend
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: vinyl-backend
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.backend.rule=PathPrefix(`/api`)"
+      - "traefik.http.routers.backend.entrypoints=web"
+      - "traefik.http.services.backend.loadbalancer.server.port=4000"
+    restart: always
     environment:
       - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/adesivagem
-      - NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_Y3JlZGlibGUtcG9ycG9pc2UtMjQuY2xlcmsuYWNjb3VudHMuZGV2JA
-      - CLERK_SECRET_KEY=sk_test_0HpE0dT4qNNGTOGU1VtW0cxCAMoCbMvihYRvnnHx5t
-      - NEXT_PUBLIC_CLERK_SIGN_IN_URL=/sign-in
-      - NEXT_PUBLIC_CLERK_SIGN_UP_URL=/sign-up
-      - NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL=/dashboard
-      - NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL=/dashboard
+      - PORT=4000
     depends_on:
       postgres:
         condition: service_healthy
+    networks:
+      - vinyl-net
 
   postgres:
     image: postgres:15-alpine
-    container_name: vinyl-saas-postgres
+    container_name: vinyl-postgres
     restart: always
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: adesivagem
-    ports:
-      - "5433:5432"
     volumes:
-      - ./postgres-data:/var/lib/postgresql/data
+      - ./database-data:/var/lib/postgresql/data
     healthcheck:
       test: [ "CMD-SHELL", "pg_isready -U postgres -d adesivagem" ]
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - vinyl-net
+
+networks:
+  vinyl-net:
+    driver: bridge
