@@ -89,12 +89,19 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
             "space-y-4 py-4 flex flex-col h-full bg-slate-900 text-white transition-all duration-300 relative",
             isCollapsed ? "w-20" : "w-72"
         )}>
-            {/* Botão de Toggle */}
+            {/* Botão de Toggle - Design Premium */}
             <button
                 onClick={onToggle}
-                className="absolute -right-3 top-10 bg-indigo-600 rounded-full h-6 w-6 flex items-center justify-center border border-white/20 hover:bg-indigo-500 transition shadow-lg z-50"
+                className={cn(
+                    "absolute -right-3 top-20 bg-indigo-600 rounded-full h-6 w-6 flex items-center justify-center border border-indigo-400/30 hover:bg-indigo-500 transition-all duration-300 shadow-[0_0_10px_rgba(79,70,229,0.4)] z-[100] group",
+                    isCollapsed && "rotate-0"
+                )}
             >
-                {isCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
+                {isCollapsed ? (
+                    <ChevronRight className="h-4 w-4 text-white group-hover:scale-110 transition-transform" />
+                ) : (
+                    <ChevronLeft className="h-4 w-4 text-white group-hover:scale-110 transition-transform" />
+                )}
             </button>
 
             <div className="px-3 py-2 flex-1 overflow-x-hidden">

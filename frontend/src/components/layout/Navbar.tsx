@@ -2,8 +2,14 @@
 
 import { useRouter } from "next/navigation";
 import { ThemeToggle } from "./ThemeToggle";
+import { Menu } from "lucide-react";
 
-export function Navbar() {
+interface NavbarProps {
+    onToggle?: () => void;
+    isSidebarCollapsed?: boolean;
+}
+
+export function Navbar({ onToggle, isSidebarCollapsed }: NavbarProps) {
     const router = useRouter();
 
     const handleSignOut = () => {
@@ -15,6 +21,13 @@ export function Navbar() {
     return (
         <div className="border-b bg-gray-900 border-gray-800">
             <div className="flex h-16 items-center px-4">
+                <button
+                    onClick={onToggle}
+                    className="mr-4 p-2 rounded-md hover:bg-gray-800 transition-colors text-gray-400 hover:text-white"
+                    title={isSidebarCollapsed ? "Expandir" : "Recolher"}
+                >
+                    <Menu className="h-5 w-5" />
+                </button>
                 <div className="font-bold text-white text-xl">
                     Vinyl Dashboard
                 </div>

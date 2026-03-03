@@ -24,7 +24,7 @@ export default function DashboardLayout({
                 "bg-gray-950 min-h-screen transition-all duration-300",
                 isCollapsed ? "md:pl-20" : "md:pl-72"
             )}>
-                <Navbar />
+                <Navbar onToggle={() => setIsCollapsed(!isCollapsed)} isSidebarCollapsed={isCollapsed} />
                 <div className="p-8">
                     {children}
                 </div>

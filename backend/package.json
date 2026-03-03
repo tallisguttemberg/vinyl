@@ -1,6 +1,6 @@
 {
     "name": "vinyl-backend",
-    "version": "1.0.0",
+    "version": "2.2.1",
     "main": "src/server.ts",
     "scripts": {
         "dev": "tsx src/server.ts",
