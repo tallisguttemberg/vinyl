@@ -18,16 +18,48 @@ import {
     DialogTitle,
     DialogTrigger,
 } from "@/components/ui/dialog";
-import { Plus, Trash2, Edit } from "lucide-react";
+import { Plus, Trash2, Edit, History } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { MaterialForm, MaterialFormValues } from "@/components/materials/MaterialForm";
+import { usePermission } from "@/hooks/usePermission";
 
 export default function MaterialsPage() {
+    const { hasPermission, isLoading: loadingPerms } = usePermission();
     const [createOpen, setCreateOpen] = useState(false);
     const [editOpen, setEditOpen] = useState(false);
+    const [entryOpen, setEntryOpen] = useState(false);
     const [editingMaterial, setEditingMaterial] = useState<{ id: string } & MaterialFormValues | null>(null);
+    const [selectedMaterialId, setSelectedMaterialId] = useState<string | null>(null);
+    const [quantityToAdd, setQuantityToAdd] = useState<number>(0);
+    const [entryNote, setEntryNote] = useState<string>("");
     const utils = api.useUtils();
 
-    const { data: materials, isLoading } = api.material.getAll.useQuery();
+    const { data: materials, isLoading } = api.material.getAll.useQuery(undefined, {
+        enabled: !loadingPerms && hasPermission("materials", "visualizar"),
+    });
+
+    if (!loadingPerms && !hasPermission("materials", "visualizar")) {
+        return (
+            <div className="flex flex-col items-center justify-center h-[60vh] space-y-4">
+                <h2 className="text-2xl font-bold text-red-500">Acesso Negado</h2>
+                <p className="text-muted-foreground">Você não tem permissão para visualizar este módulo.</p>
+            </div>
+        );
+    }
+
+    const entryMutation = api.material.registerEntry.useMutation({
+        onSuccess: () => {
+            utils.material.getAll.invalidate();
+            setEntryOpen(false);
+            setQuantityToAdd(0);
+            setEntryNote("");
+        },
+        onError: (error: any) => {
+            console.error("Erro ao registrar entrada:", error);
+            alert("Erro ao registrar entrada: " + error.message);
+        }
+    });
 
     const createMaterial = api.material.create.useMutation({
         onSuccess: () => {
@@ -78,22 +110,24 @@ export default function MaterialsPage() {
         <div className="space-y-6">
             <div className="flex items-center justify-between">
                 <h2 className="text-3xl font-bold tracking-tight">Materiais</h2>
-                <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-                    <DialogTrigger asChild>
-                        <Button>
-                            <Plus className="mr-2 h-4 w-4" /> Novo Material
-                        </Button>
-                    </DialogTrigger>
-                    <DialogContent>
-                        <DialogHeader>
-                            <DialogTitle>Adicionar Material</DialogTitle>
-                        </DialogHeader>
-                        <MaterialForm
-                            onSubmit={handleCreate}
-                            isPending={createMaterial.isPending}
-                        />
-                    </DialogContent>
-                </Dialog>
+                {hasPermission("materials", "criar") && (
+                    <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+                        <DialogTrigger asChild>
+                            <Button>
+                                <Plus className="mr-2 h-4 w-4" /> Novo Material
+                            </Button>
+                        </DialogTrigger>
+                        <DialogContent>
+                            <DialogHeader>
+                                <DialogTitle>Adicionar Material</DialogTitle>
+                            </DialogHeader>
+                            <MaterialForm
+                                onSubmit={handleCreate}
+                                isPending={createMaterial.isPending}
+                            />
+                        </DialogContent>
+                    </Dialog>
+                )}
             </div>
 
             <div className="rounded-md border">
@@ -133,31 +167,48 @@ export default function MaterialsPage() {
                                     <TableCell>R$ {Number(material.costPerSqMeter).toFixed(2)}</TableCell>
                                     <TableCell>
                                         <div className="flex items-center gap-2">
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                onClick={() => {
-                                                    setEditingMaterial({
-                                                        id: material.id,
-                                                        name: material.name,
-                                                        pricePerRoll: Number(material.pricePerRoll),
-                                                        rollLength: Number(material.rollLength),
-                                                        width: Number(material.width),
-                                                        stockAmount: Number(material.stockAmount),
-                                                    });
-                                                    setEditOpen(true);
-                                                }}
-                                            >
-                                                <Edit className="h-4 w-4" />
-                                            </Button>
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                onClick={() => handleDelete(material.id)}
-                                                disabled={deleteMaterial.isPending}
-                                            >
-                                                <Trash2 className="h-4 w-4 text-red-500" />
-                                            </Button>
+                                            {hasPermission("materials", "editar") && (
+                                                <Button
+                                                    variant="outline"
+                                                    size="icon"
+                                                    title="Registrar Entrada"
+                                                    onClick={() => {
+                                                        setSelectedMaterialId(material.id);
+                                                        setEntryOpen(true);
+                                                    }}
+                                                >
+                                                    <History className="h-4 w-4" />
+                                                </Button>
+                                            )}
+                                            {hasPermission("materials", "editar") && (
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    onClick={() => {
+                                                        setEditingMaterial({
+                                                            id: material.id,
+                                                            name: material.name,
+                                                            pricePerRoll: Number(material.pricePerRoll),
+                                                            rollLength: Number(material.rollLength),
+                                                            width: Number(material.width),
+                                                            stockAmount: Number(material.stockAmount),
+                                                        });
+                                                        setEditOpen(true);
+                                                    }}
+                                                >
+                                                    <Edit className="h-4 w-4" />
+                                                </Button>
+                                            )}
+                                            {hasPermission("materials", "excluir") && (
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    onClick={() => handleDelete(material.id)}
+                                                    disabled={deleteMaterial.isPending}
+                                                >
+                                                    <Trash2 className="h-4 w-4 text-red-500" />
+                                                </Button>
+                                            )}
                                         </div>
                                     </TableCell>
                                 </TableRow>
@@ -166,6 +217,51 @@ export default function MaterialsPage() {
                     </TableBody>
                 </Table>
             </div>
+
+            <Dialog open={entryOpen} onOpenChange={setEntryOpen}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Registrar Entrada de Estoque</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4 py-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="quantity">Quantidade a adicionar (m²)</Label>
+                            <Input
+                                id="quantity"
+                                type="number"
+                                step="0.01"
+                                placeholder="0.00"
+                                value={quantityToAdd}
+                                onChange={(e) => setQuantityToAdd(Number(e.target.value))}
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="note">Observação (Opcional)</Label>
+                            <Input
+                                id="note"
+                                placeholder="Ex: NF-1234, Fornecedor X..."
+                                value={entryNote}
+                                onChange={(e) => setEntryNote(e.target.value)}
+                            />
+                        </div>
+                        <Button
+                            className="w-full"
+                            disabled={entryMutation.isPending || quantityToAdd <= 0}
+                            onClick={() => {
+                                if (selectedMaterialId) {
+                                    entryMutation.mutate({
+                                        materialId: selectedMaterialId,
+                                        quantityAdded: quantityToAdd,
+                                        note: entryNote || undefined,
+                                    });
+                                }
+                            }}
+                        >
+                            {entryMutation.isPending ? "Registrando..." : "Confirmar Entrada"}
+                        </Button>
+                    </div>
+                </DialogContent>
+            </Dialog>
 
             <Dialog open={editOpen} onOpenChange={setEditOpen}>
                 <DialogContent>
@@ -181,7 +277,7 @@ export default function MaterialsPage() {
                     )}
                 </DialogContent>
             </Dialog>
-        </div>
+        </div >
     );
 }
 

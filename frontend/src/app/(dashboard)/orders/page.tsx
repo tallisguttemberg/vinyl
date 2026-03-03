@@ -20,10 +20,14 @@ import {
     DropdownMenuItem,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { usePermission } from "@/hooks/usePermission";
 
 export default function OrdersPage() {
+    const { hasPermission, isLoading: loadingPerms } = usePermission();
     const utils = api.useUtils();
-    const { data: orders, isLoading } = api.order.getAll.useQuery();
+    const { data: orders, isLoading } = api.order.getAll.useQuery(undefined, {
+        enabled: !loadingPerms && hasPermission("orders", "visualizar"),
+    });
 
     const deleteOrder = api.order.delete.useMutation({
         onSuccess: () => {
@@ -37,15 +41,26 @@ export default function OrdersPage() {
         }
     };
 
+    if (!loadingPerms && !hasPermission("orders", "visualizar")) {
+        return (
+            <div className="flex flex-col items-center justify-center h-[60vh] space-y-4">
+                <h2 className="text-2xl font-bold text-red-500">Acesso Negado</h2>
+                <p className="text-muted-foreground">Você não tem permissão para visualizar este módulo.</p>
+            </div>
+        );
+    }
+
     return (
         <div className="space-y-6">
             <div className="flex items-center justify-between">
                 <h2 className="text-3xl font-bold tracking-tight">Ordens de Serviço</h2>
-                <Button asChild>
-                    <Link href="/orders/new">
-                        <Plus className="mr-2 h-4 w-4" /> Nova Ordem
-                    </Link>
-                </Button>
+                {hasPermission("orders", "criar") && (
+                    <Button asChild>
+                        <Link href="/orders/new">
+                            <Plus className="mr-2 h-4 w-4" /> Nova Ordem
+                        </Link>
+                    </Button>
+                )}
             </div>
 
             <div className="rounded-md border">
@@ -94,15 +109,19 @@ export default function OrdersPage() {
                                                 <DropdownMenuItem asChild>
                                                     <Link href={`/orders/${order.id}`}>Ver Detalhes</Link>
                                                 </DropdownMenuItem>
-                                                <DropdownMenuItem asChild>
-                                                    <Link href={`/orders/${order.id}/edit`}>Editar</Link>
-                                                </DropdownMenuItem>
-                                                <DropdownMenuItem
-                                                    className="text-red-600"
-                                                    onClick={() => handleDelete(order.id)}
-                                                >
-                                                    Excluir
-                                                </DropdownMenuItem>
+                                                {hasPermission("orders", "editar") && (
+                                                    <DropdownMenuItem asChild>
+                                                        <Link href={`/orders/${order.id}/edit`}>Editar</Link>
+                                                    </DropdownMenuItem>
+                                                )}
+                                                {hasPermission("orders", "excluir") && (
+                                                    <DropdownMenuItem
+                                                        className="text-red-600"
+                                                        onClick={() => handleDelete(order.id)}
+                                                    >
+                                                        Excluir
+                                                    </DropdownMenuItem>
+                                                )}
                                             </DropdownMenuContent>
                                         </DropdownMenu>
                                     </TableCell>

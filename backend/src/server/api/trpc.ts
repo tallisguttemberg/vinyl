@@ -21,11 +21,43 @@ export const createTRPCContext = async (opts: CreateContextOptions) => {
     const token = authHeader.replace("Bearer ", "");
 
     let authSession = null;
+
     if (token === ADMIN_TOKEN) {
         authSession = {
             userId: "admin",
             orgId: ADMIN_ORG_ID,
+            perfil: "ADMIN",
+            permissoes: [] // Admin bypasses checks or has all
         };
+    } else if (token) {
+        // Tentar validar o token como um ID de usuário no banco de dados
+        const user = await prisma.user.findUnique({
+            where: { id: token },
+            select: {
+                id: true,
+                organizationId: true,
+                status: true,
+                perfil: true,
+                permissoes: {
+                    select: {
+                        modulo: true,
+                        visualizar: true,
+                        criar: true,
+                        editar: true,
+                        excluir: true,
+                    }
+                }
+            }
+        });
+
+        if (user && user.status === "ATIVO") {
+            authSession = {
+                userId: user.id,
+                orgId: user.organizationId,
+                perfil: user.perfil,
+                permissoes: user.permissoes,
+            };
+        }
     }
 
     return {
@@ -56,12 +88,65 @@ export const protectedProcedure = t.procedure.use(({ ctx, next }) => {
         throw new TRPCError({ code: "UNAUTHORIZED" });
     }
 
+    const authSession = ctx.session;
+
     return next({
         ctx: {
+            // Infere que a sessão não é nula aqui
             session: {
-                ...ctx.session,
-                orgId: ctx.session.orgId || ADMIN_ORG_ID,
+                ...authSession,
+                orgId: authSession.orgId || ADMIN_ORG_ID,
             },
         },
     });
 });
+
+/**
+ * Middleware para verificar permissões específicas
+ */
+export const permissionMiddleware = (modulo: string, acao: 'visualizar' | 'criar' | 'editar' | 'excluir') =>
+    t.middleware(({ ctx, next }) => {
+        if (!ctx.session || !ctx.session.userId) {
+            throw new TRPCError({ code: "UNAUTHORIZED" });
+        }
+
+        const authSession = ctx.session;
+
+        // Admin tem acesso total
+        if (authSession.perfil === "ADMIN" || authSession.userId === "admin") {
+            return next({
+                ctx: {
+                    ...ctx,
+                    session: {
+                        ...authSession,
+                        orgId: authSession.orgId || ADMIN_ORG_ID,
+                    }
+                }
+            });
+        }
+
+        const permissao = authSession.permissoes.find((p: any) => p.modulo === modulo);
+
+        if (!permissao || !permissao[acao]) {
+            throw new TRPCError({
+                code: "FORBIDDEN",
+                message: `Você não tem permissão para ${acao} no módulo ${modulo}.`
+            });
+        }
+
+        return next({
+            ctx: {
+                ...ctx,
+                session: {
+                    ...authSession,
+                    orgId: authSession.orgId || ADMIN_ORG_ID,
+                }
+            }
+        });
+    });
+
+/**
+ * Procedimentos com verificação de permissão
+ */
+export const checkPermission = (modulo: string, acao: 'visualizar' | 'criar' | 'editar' | 'excluir') =>
+    protectedProcedure.use(permissionMiddleware(modulo, acao));

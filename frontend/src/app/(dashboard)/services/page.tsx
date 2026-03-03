@@ -20,14 +20,27 @@ import {
 } from "@/components/ui/dialog";
 import { Plus, Trash2, Edit } from "lucide-react";
 import { ServiceTypeForm, ServiceTypeFormValues } from "@/components/services/ServiceTypeForm";
+import { usePermission } from "@/hooks/usePermission";
 
 export default function ServicesPage() {
+    const { hasPermission, isLoading: loadingPerms } = usePermission();
     const [createOpen, setCreateOpen] = useState(false);
     const [editOpen, setEditOpen] = useState(false);
     const [editingService, setEditingService] = useState<{ id: string } & ServiceTypeFormValues | null>(null);
     const utils = api.useUtils();
 
-    const { data: services, isLoading } = api.serviceType.getAll.useQuery();
+    const { data: services, isLoading } = api.serviceType.getAll.useQuery(undefined, {
+        enabled: !loadingPerms && hasPermission("services", "visualizar"),
+    });
+
+    if (!loadingPerms && !hasPermission("services", "visualizar")) {
+        return (
+            <div className="flex flex-col items-center justify-center h-[60vh] space-y-4">
+                <h2 className="text-2xl font-bold text-red-500">Acesso Negado</h2>
+                <p className="text-muted-foreground">Você não tem permissão para visualizar este módulo.</p>
+            </div>
+        );
+    }
 
     const createService = api.serviceType.create.useMutation({
         onSuccess: () => {
@@ -78,22 +91,24 @@ export default function ServicesPage() {
         <div className="space-y-6">
             <div className="flex items-center justify-between">
                 <h2 className="text-3xl font-bold tracking-tight">Tipos de Serviço</h2>
-                <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-                    <DialogTrigger asChild>
-                        <Button>
-                            <Plus className="mr-2 h-4 w-4" /> Novo Serviço
-                        </Button>
-                    </DialogTrigger>
-                    <DialogContent>
-                        <DialogHeader>
-                            <DialogTitle>Adicionar Tipo de Serviço</DialogTitle>
-                        </DialogHeader>
-                        <ServiceTypeForm
-                            onSubmit={handleCreate}
-                            isPending={createService.isPending}
-                        />
-                    </DialogContent>
-                </Dialog>
+                {hasPermission("services", "criar") && (
+                    <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+                        <DialogTrigger asChild>
+                            <Button>
+                                <Plus className="mr-2 h-4 w-4" /> Novo Serviço
+                            </Button>
+                        </DialogTrigger>
+                        <DialogContent>
+                            <DialogHeader>
+                                <DialogTitle>Adicionar Tipo de Serviço</DialogTitle>
+                            </DialogHeader>
+                            <ServiceTypeForm
+                                onSubmit={handleCreate}
+                                isPending={createService.isPending}
+                            />
+                        </DialogContent>
+                    </Dialog>
+                )}
             </div>
 
             <div className="rounded-md border">
@@ -129,29 +144,33 @@ export default function ServicesPage() {
                                     </TableCell>
                                     <TableCell>
                                         <div className="flex items-center gap-2">
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                onClick={() => {
-                                                    setEditingService({
-                                                        id: service.id,
-                                                        name: service.name,
-                                                        billingType: service.billingType as "FIXED" | "PER_M2",
-                                                        defaultPrice: Number(service.defaultPrice),
-                                                    });
-                                                    setEditOpen(true);
-                                                }}
-                                            >
-                                                <Edit className="h-4 w-4" />
-                                            </Button>
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                onClick={() => handleDelete(service.id)}
-                                                disabled={deleteService.isPending}
-                                            >
-                                                <Trash2 className="h-4 w-4 text-red-500" />
-                                            </Button>
+                                            {hasPermission("services", "editar") && (
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    onClick={() => {
+                                                        setEditingService({
+                                                            id: service.id,
+                                                            name: service.name,
+                                                            billingType: service.billingType as "FIXED" | "PER_M2",
+                                                            defaultPrice: Number(service.defaultPrice),
+                                                        });
+                                                        setEditOpen(true);
+                                                    }}
+                                                >
+                                                    <Edit className="h-4 w-4" />
+                                                </Button>
+                                            )}
+                                            {hasPermission("services", "excluir") && (
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    onClick={() => handleDelete(service.id)}
+                                                    disabled={deleteService.isPending}
+                                                >
+                                                    <Trash2 className="h-4 w-4 text-red-500" />
+                                                </Button>
+                                            )}
                                         </div>
                                     </TableCell>
                                 </TableRow>

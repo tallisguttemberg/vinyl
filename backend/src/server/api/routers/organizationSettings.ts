@@ -1,14 +1,14 @@
 import { z } from "zod";
-import { createTRPCRouter, protectedProcedure } from "../trpc";
+import { createTRPCRouter, checkPermission } from "../trpc";
 
 export const organizationSettingsRouter = createTRPCRouter({
-    getSettings: protectedProcedure.query(async ({ ctx }) => {
+    getSettings: checkPermission("settings", "visualizar").query(async ({ ctx }) => {
         return ctx.prisma.organizationSettings.findUnique({
             where: { organizationId: ctx.session.orgId! },
         });
     }),
 
-    updateSettings: protectedProcedure
+    updateSettings: checkPermission("settings", "editar")
         .input(
             z.object({
                 businessName: z.string().optional(),

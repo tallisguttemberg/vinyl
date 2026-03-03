@@ -1,11 +1,17 @@
-
 import { z } from "zod";
-import { createTRPCRouter, protectedProcedure } from "../trpc";
+import { createTRPCRouter, checkPermission } from "../trpc";
 import { calculateMaterialCost } from "../../../lib/calculations";
 import { TRPCError } from "@trpc/server";
 
+// Contrato da nova Skill
+const registerEntrySchema = z.object({
+    materialId: z.string().cuid(), // Ou seu tipo de ID
+    quantityAdded: z.number().positive(),
+    note: z.string().optional(),
+});
+
 export const materialRouter = createTRPCRouter({
-    getAll: protectedProcedure.query(async ({ ctx }) => {
+    getAll: checkPermission("materials", "visualizar").query(async ({ ctx }) => {
         if (!ctx.session.orgId) return [];
 
         return ctx.prisma.material.findMany({
@@ -18,7 +24,7 @@ export const materialRouter = createTRPCRouter({
         });
     }),
 
-    create: protectedProcedure
+    create: checkPermission("materials", "criar")
         .input(
             z.object({
                 name: z.string().min(1),
@@ -53,7 +59,7 @@ export const materialRouter = createTRPCRouter({
             });
         }),
 
-    delete: protectedProcedure
+    delete: checkPermission("materials", "excluir")
         .input(z.object({ id: z.string() }))
         .mutation(async ({ ctx, input }) => {
             if (!ctx.session.orgId) return null;
@@ -72,7 +78,7 @@ export const materialRouter = createTRPCRouter({
             });
         }),
 
-    update: protectedProcedure
+    update: checkPermission("materials", "editar")
         .input(
             z.object({
                 id: z.string(),
@@ -113,6 +119,39 @@ export const materialRouter = createTRPCRouter({
                     costPerSqMeter: costs.costPerSqMeter,
                     stockAmount: input.stockAmount,
                 },
+            });
+        }),
+
+    registerEntry: checkPermission("materials", "editar") // Entrada de estoque é considerado "editar" materiais
+        .input(registerEntrySchema)
+        .mutation(async ({ ctx, input }) => {
+            // 1. Verificação de autorização e existência (Spec de segurança)
+            const material = await ctx.prisma.material.findUnique({
+                where: { id: input.materialId, organizationId: ctx.session.orgId },
+            });
+
+            if (!material) throw new TRPCError({ code: "NOT_FOUND" });
+
+            // 2. Transação Atômica: Registrar entrada E atualizar estoque
+            return await ctx.prisma.$transaction(async (tx) => {
+                // A) Criar o registro de histórico (a "prova" da entrada)
+                const entry = await tx.materialEntry.create({
+                    data: {
+                        materialId: input.materialId,
+                        quantity: input.quantityAdded,
+                        note: input.note,
+                    }
+                });
+
+                // B) Atualizar o saldo (StockAmount)
+                const updatedMaterial = await tx.material.update({
+                    where: { id: input.materialId },
+                    data: {
+                        stockAmount: { increment: input.quantityAdded }
+                    }
+                });
+
+                return updatedMaterial;
             });
         }),
 });

@@ -1,10 +1,9 @@
-
 import { z } from "zod";
-import { createTRPCRouter, protectedProcedure } from "../trpc";
+import { createTRPCRouter, checkPermission } from "../trpc";
 import { TRPCError } from "@trpc/server";
 
 export const serviceTypeRouter = createTRPCRouter({
-    getAll: protectedProcedure.query(async ({ ctx }) => {
+    getAll: checkPermission("services", "visualizar").query(async ({ ctx }) => {
         if (!ctx.session.orgId) return [];
 
         return ctx.prisma.serviceType.findMany({
@@ -17,7 +16,7 @@ export const serviceTypeRouter = createTRPCRouter({
         });
     }),
 
-    create: protectedProcedure
+    create: checkPermission("services", "criar")
         .input(
             z.object({
                 name: z.string().min(1),
@@ -40,7 +39,7 @@ export const serviceTypeRouter = createTRPCRouter({
             });
         }),
 
-    delete: protectedProcedure
+    delete: checkPermission("services", "excluir")
         .input(z.object({ id: z.string() }))
         .mutation(async ({ ctx, input }) => {
             if (!ctx.session.orgId) return null;
@@ -58,7 +57,7 @@ export const serviceTypeRouter = createTRPCRouter({
             });
         }),
 
-    update: protectedProcedure
+    update: checkPermission("services", "editar")
         .input(
             z.object({
                 id: z.string(),

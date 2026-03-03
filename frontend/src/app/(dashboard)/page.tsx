@@ -6,6 +6,7 @@ import { DollarSign, Package, Users, Clock, CheckCircle2, PlayCircle, XCircle } 
 import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd";
 import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
+import { usePermission } from "@/hooks/usePermission";
 
 const COLUMNS = [
     { id: "PENDING", title: "Pendente", icon: Clock, color: "text-yellow-500" },
@@ -15,9 +16,19 @@ const COLUMNS = [
 ] as const;
 
 export default function DashboardPage() {
+    const { hasPermission, isLoading: loadingPerms } = usePermission();
     const utils = api.useUtils();
-    const { data: stats, isLoading: statsLoading } = api.order.getDashboardStats.useQuery();
-    const { data: orders, isLoading: ordersLoading } = api.order.getAll.useQuery();
+
+    // Check for dashboard visualization
+    const canViewDashboard = hasPermission("dashboard", "visualizar");
+    const canEditOrders = hasPermission("orders", "editar");
+
+    const { data: stats, isLoading: statsLoading } = api.order.getDashboardStats.useQuery(undefined, {
+        enabled: !loadingPerms && canViewDashboard,
+    });
+    const { data: orders, isLoading: ordersLoading } = api.order.getAll.useQuery(undefined, {
+        enabled: !loadingPerms && canViewDashboard,
+    });
 
     const updateStatus = api.order.updateStatus.useMutation({
         onSuccess: () => {
@@ -31,6 +42,7 @@ export default function DashboardPage() {
     });
 
     const onDragEnd = (result: DropResult) => {
+        if (!canEditOrders) return;
         const { destination, source, draggableId } = result;
 
         if (!destination) return;
@@ -42,7 +54,16 @@ export default function DashboardPage() {
         });
     };
 
-    if (statsLoading || ordersLoading) {
+    if (!loadingPerms && !canViewDashboard) {
+        return (
+            <div className="flex flex-col items-center justify-center h-[60vh] space-y-4">
+                <h2 className="text-2xl font-bold text-red-500">Acesso Negado</h2>
+                <p className="text-muted-foreground">Você não tem permissão para visualizar o Dashboard.</p>
+            </div>
+        );
+    }
+
+    if (statsLoading || ordersLoading || loadingPerms) {
         return <div className="p-8">Carregando dashboard...</div>;
     }
 

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { api } from "@/trpc/react";
 
 export default function LoginPage() {
     const [username, setUsername] = useState("");
@@ -9,17 +10,32 @@ export default function LoginPage() {
     const [error, setError] = useState("");
     const router = useRouter();
 
+    const loginMutation = api.user.login.useMutation({
+        onSuccess: (data) => {
+            // Set session token (using the returned user ID as token)
+            localStorage.setItem("vinyl-token", data.token);
+            // Set a cookie for the middleware to read
+            document.cookie = `vinyl-session=${data.token}; path=/`;
+            router.push("/");
+        },
+        onError: (err) => {
+            setError(err.message || "Invalid username or password");
+        },
+    });
+
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
+        setError("");
+
+        // Mantendo compatibilidade legada se necessário, ou removendo para usar apenas DB
         if (username === "admin" && password === "admin") {
-            // Set simple token
             localStorage.setItem("vinyl-token", "admin-token");
-            // Set a cookie for the middleware to read
             document.cookie = "vinyl-session=admin-token; path=/";
             router.push("/");
-        } else {
-            setError("Invalid username or password");
+            return;
         }
+
+        loginMutation.mutate({ usuario: username, senha: password });
     };
 
     return (

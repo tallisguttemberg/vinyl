@@ -20,9 +20,7 @@ import { useEffect } from "react";
 import { Building2, Pencil } from "lucide-react";
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
 import Image from "next/image";
-
-// Wait, I saw 'sonner' in some shadcn installations but package.json only has 'lucide-react', 'radix-ui', etc.
-// I will implement a basic on success alert.
+import { usePermission } from "@/hooks/usePermission";
 
 const formSchema = z.object({
     businessName: z.string().optional(),
@@ -33,7 +31,10 @@ const formSchema = z.object({
 });
 
 export default function SettingsPage() {
-    const { data: settings, isLoading } = api.organizationSettings.getSettings.useQuery();
+    const { hasPermission, isLoading: loadingPerms } = usePermission();
+    const { data: settings, isLoading } = api.organizationSettings.getSettings.useQuery(undefined, {
+        enabled: !loadingPerms && hasPermission("settings", "visualizar"),
+    });
 
     const utils = api.useUtils();
 
@@ -47,6 +48,8 @@ export default function SettingsPage() {
             alert(`Erro ao salvar: ${error.message}`);
         },
     });
+
+    const canEdit = hasPermission("settings", "editar");
 
     const form = useForm<z.infer<typeof formSchema>>({
         resolver: zodResolver(formSchema) as any,
@@ -72,10 +75,20 @@ export default function SettingsPage() {
     }, [settings, form]);
 
     function onSubmit(values: z.infer<typeof formSchema>) {
+        if (!canEdit) return;
         updateSettings.mutate(values);
     }
 
-    if (isLoading) return <div className="text-white p-8">Carregando...</div>;
+    if (!loadingPerms && !hasPermission("settings", "visualizar")) {
+        return (
+            <div className="flex flex-col items-center justify-center h-[60vh] space-y-4">
+                <h2 className="text-2xl font-bold text-red-500">Acesso Negado</h2>
+                <p className="text-muted-foreground">Você não tem permissão para visualizar este módulo.</p>
+            </div>
+        );
+    }
+
+    if (isLoading || loadingPerms) return <div className="text-white p-8">Carregando...</div>;
 
     return (
         <div className="space-y-6">
@@ -113,6 +126,7 @@ export default function SettingsPage() {
                                     type="file"
                                     accept="image/*"
                                     className="cursor-pointer"
+                                    disabled={!canEdit}
                                     onChange={(e) => {
                                         const file = e.target.files?.[0];
                                         if (file) {
@@ -152,7 +166,7 @@ export default function SettingsPage() {
                                         <FormItem>
                                             <FormLabel>Nome Fantasia / Razão Social</FormLabel>
                                             <FormControl>
-                                                <Input placeholder="Minha Empresa de Adesivos" {...field} />
+                                                <Input placeholder="Minha Empresa de Adesivos" {...field} disabled={!canEdit} />
                                             </FormControl>
                                             <FormMessage />
                                         </FormItem>
@@ -166,7 +180,7 @@ export default function SettingsPage() {
                                             <FormItem>
                                                 <FormLabel>CNPJ / CPF</FormLabel>
                                                 <FormControl>
-                                                    <Input placeholder="00.000.000/0001-00" {...field} />
+                                                    <Input placeholder="00.000.000/0001-00" {...field} disabled={!canEdit} />
                                                 </FormControl>
                                                 <FormMessage />
                                             </FormItem>
@@ -179,16 +193,18 @@ export default function SettingsPage() {
                                             <FormItem>
                                                 <FormLabel>Telefone / WhatsApp</FormLabel>
                                                 <FormControl>
-                                                    <Input placeholder="(00) 00000-0000" {...field} />
+                                                    <Input placeholder="(00) 00000-0000" {...field} disabled={!canEdit} />
                                                 </FormControl>
                                                 <FormMessage />
                                             </FormItem>
                                         )}
                                     />
                                 </div>
-                                <Button type="submit" className="w-full" disabled={updateSettings.isPending}>
-                                    {updateSettings.isPending ? "Salvando..." : "Salvar Dados de Impressão"}
-                                </Button>
+                                {canEdit && (
+                                    <Button type="submit" className="w-full" disabled={updateSettings.isPending}>
+                                        {updateSettings.isPending ? "Salvando..." : "Salvar Dados de Impressão"}
+                                    </Button>
+                                )}
                             </form>
                         </Form>
                     </CardContent>
@@ -209,7 +225,7 @@ export default function SettingsPage() {
                                     <FormItem>
                                         <FormLabel>Email de Contato</FormLabel>
                                         <FormControl>
-                                            <Input placeholder="contato@empresa.com" {...field} />
+                                            <Input placeholder="contato@empresa.com" {...field} disabled={!canEdit} />
                                         </FormControl>
                                         <FormMessage />
                                     </FormItem>
@@ -223,16 +239,18 @@ export default function SettingsPage() {
                                     <FormItem>
                                         <FormLabel>Endereço Completo</FormLabel>
                                         <FormControl>
-                                            <Input placeholder="Rua Exemplo, 123 - Bairro - Cidade/UF" {...field} />
+                                            <Input placeholder="Rua Exemplo, 123 - Bairro - Cidade/UF" {...field} disabled={!canEdit} />
                                         </FormControl>
                                         <FormMessage />
                                     </FormItem>
                                 )}
                             />
 
-                            <Button type="submit" disabled={updateSettings.isPending}>
-                                {updateSettings.isPending ? "Salvando..." : "Salvar Contato"}
-                            </Button>
+                            {canEdit && (
+                                <Button type="submit" disabled={updateSettings.isPending}>
+                                    {updateSettings.isPending ? "Salvando..." : "Salvar Contato"}
+                                </Button>
+                            )}
                         </form>
                     </Form>
                 </CardContent>

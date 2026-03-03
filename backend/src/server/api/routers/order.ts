@@ -1,6 +1,5 @@
-
 import { z } from "zod";
-import { createTRPCRouter, protectedProcedure } from "../trpc";
+import { createTRPCRouter, checkPermission } from "../trpc";
 import { calculateOrder } from "../../../lib/calculations";
 import { TRPCError } from "@trpc/server";
 
@@ -14,7 +13,7 @@ const orderItemSchema = z.object({
 });
 
 export const orderRouter = createTRPCRouter({
-    getAll: protectedProcedure.query(async ({ ctx }) => {
+    getAll: checkPermission("orders", "visualizar").query(async ({ ctx }) => {
         if (!ctx.session.orgId) return [];
 
         return ctx.prisma.order.findMany({
@@ -35,7 +34,7 @@ export const orderRouter = createTRPCRouter({
         });
     }),
 
-    getDashboardStats: protectedProcedure.query(async ({ ctx }) => {
+    getDashboardStats: checkPermission("orders", "visualizar").query(async ({ ctx }) => {
         if (!ctx.session.orgId) return null;
 
         const orders = await ctx.prisma.order.findMany({
@@ -72,7 +71,7 @@ export const orderRouter = createTRPCRouter({
         };
     }),
 
-    getById: protectedProcedure
+    getById: checkPermission("orders", "visualizar")
         .input(z.object({ id: z.string() }))
         .query(async ({ ctx, input }) => {
             if (!ctx.session.orgId) return null;
@@ -95,7 +94,7 @@ export const orderRouter = createTRPCRouter({
             return order;
         }),
 
-    calculate: protectedProcedure
+    calculate: checkPermission("orders", "visualizar") // Cálculo é parte da visualização/criação
         .input(
             z.object({
                 items: z.array(orderItemSchema),
@@ -104,10 +103,6 @@ export const orderRouter = createTRPCRouter({
             })
         )
         .mutation(async ({ ctx, input }) => {
-            // Fetch necessary data to perform calculation
-            // We need material costs
-            // In a real app we might cache this or pass it from client, but safer to fetch from DB
-
             const materials = await ctx.prisma.material.findMany({
                 where: {
                     id: { in: input.items.map(i => i.materialId).filter((id): id is string => !!id) },
@@ -143,7 +138,7 @@ export const orderRouter = createTRPCRouter({
             });
         }),
 
-    create: protectedProcedure
+    create: checkPermission("orders", "criar")
         .input(
             z.object({
                 customerName: z.string().min(1),
@@ -224,7 +219,7 @@ export const orderRouter = createTRPCRouter({
                                 height: item.height,
                                 quantity: item.quantity,
                                 price: calcItem.revenue,
-                                cost: calcItem.materialCost, // Include wate in stored cost? Per requirements "Total gasto com material" is order level. Item level cost helpful.
+                                cost: calcItem.materialCost,
                             };
                         })
                     }
@@ -232,7 +227,7 @@ export const orderRouter = createTRPCRouter({
             });
         }),
 
-    delete: protectedProcedure
+    delete: checkPermission("orders", "excluir")
         .input(z.object({ id: z.string() }))
         .mutation(async ({ ctx, input }) => {
             if (!ctx.session.orgId) return null;
@@ -250,7 +245,7 @@ export const orderRouter = createTRPCRouter({
             });
         }),
 
-    update: protectedProcedure
+    update: checkPermission("orders", "editar")
         .input(
             z.object({
                 id: z.string(),
@@ -320,14 +315,11 @@ export const orderRouter = createTRPCRouter({
             });
 
             // 4. Update DB
-            // We use a transaction to delete old items and create new ones (simplest way to update nested array)
             return ctx.prisma.$transaction(async (tx) => {
-                // Delete existing items
                 await tx.orderItem.deleteMany({
                     where: { orderId: input.id }
                 });
 
-                // Update order and create new items
                 return tx.order.update({
                     where: { id: input.id },
                     data: {
@@ -358,7 +350,7 @@ export const orderRouter = createTRPCRouter({
             });
         }),
 
-    updateStatus: protectedProcedure
+    updateStatus: checkPermission("orders", "editar")
         .input(z.object({
             id: z.string(),
             status: z.enum(["PENDING", "IN_PROGRESS", "COMPLETED", "CANCELLED"])

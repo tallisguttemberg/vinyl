@@ -25,8 +25,18 @@ model Material {
   updatedAt       DateTime @updatedAt
 
   orderItems      OrderItem[]
+  entries         MaterialEntry[]
 
   @@index([organizationId])
+}
+
+model MaterialEntry {
+  id         String   @id @default(cuid())
+  materialId String
+  quantity   Float
+  createdAt  DateTime @default(now())
+  note       String?
+  material   Material @relation(fields: [materialId], references: [id])
 }
 
 enum BillingType {
@@ -117,4 +127,70 @@ model OrganizationSettings {
   updatedAt       DateTime @updatedAt
   
   @@index([organizationId])
+}
+
+enum Role {
+  ADMIN
+  GESTOR
+  OPERADOR
+  CLIENTE
+}
+
+enum UserStatus {
+  ATIVO
+  INATIVO
+  BLOQUEADO
+}
+
+model User {
+  id             String     @id @default(uuid())
+  organizationId String     @default("default") // To keep multitenant support
+  usuario        String     @unique
+  nomeCompleto   String
+  email          String     @unique
+  senhaHash      String
+  perfil         Role       @default(OPERADOR)
+  status         UserStatus @default(ATIVO)
+  telefone       String?
+  fotoPerfil     String?
+  ultimoLogin    DateTime?
+  observacoes    String?
+  
+  criadoPorId    String?
+  criadoPor      User?      @relation("UserCreator", fields: [criadoPorId], references: [id])
+  usuariosCriados User[]    @relation("UserCreator")
+  
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+  
+  auditLogs      AuditLog[] @relation("UserActionResponsible")
+  createdLogs    AuditLog[] @relation("UserActionCreated")
+  permissoes     UserPermission[]
+  
+  @@index([organizationId])
+}
+
+model AuditLog {
+  id                   String   @id @default(uuid())
+  idUsuarioCriado      String?
+  usuarioCriado        User?    @relation("UserActionCreated", fields: [idUsuarioCriado], references: [id])
+  idUsuarioResponsavel String?
+  usuarioResponsavel   User?    @relation("UserActionResponsible", fields: [idUsuarioResponsavel], references: [id])
+  acao                 String
+  ip                   String?
+  createdAt            DateTime @default(now())
+}
+
+model UserPermission {
+  id         String  @id @default(uuid())
+  userId     String
+  user       User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  modulo     String  // ex: "orders", "materials", "settings"
+  visualizar Boolean @default(false)
+  criar      Boolean @default(false)
+  editar     Boolean @default(false)
+  excluir    Boolean @default(false)
+
+  @@unique([userId, modulo])
+  @@index([userId])
 }
