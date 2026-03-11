@@ -69,6 +69,7 @@ export default function OrdersPage() {
                         <TableRow>
                             <TableHead>Data</TableHead>
                             <TableHead>Cliente</TableHead>
+                            <TableHead>Vendedor</TableHead>
                             <TableHead>Status</TableHead>
                             <TableHead>Faturamento</TableHead>
                             <TableHead>Lucro</TableHead>
@@ -90,6 +91,7 @@ export default function OrdersPage() {
                                 <TableRow key={order.id}>
                                     <TableCell>{format(new Date(order.createdAt), 'dd/MM/yyyy')}</TableCell>
                                     <TableCell className="font-medium">{order.customerName}</TableCell>
+                                    <TableCell>{(order as any).vendedor?.nomeCompleto || "-"}</TableCell>
                                     <TableCell>
                                         <Badge variant={order.status === 'COMPLETED' ? 'default' : 'secondary'}>
                                             {order.status}

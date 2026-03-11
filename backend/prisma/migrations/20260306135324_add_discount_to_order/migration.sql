@@ -1,0 +1,3 @@
+-- AlterTable
+ALTER TABLE "Order" ADD COLUMN     "discountType" TEXT NOT NULL DEFAULT 'PERCENTAGE',
+ADD COLUMN     "discountValue" DECIMAL(10,2) NOT NULL DEFAULT 0;

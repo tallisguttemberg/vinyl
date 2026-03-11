@@ -22,6 +22,8 @@ export const serviceTypeRouter = createTRPCRouter({
                 name: z.string().min(1),
                 billingType: z.enum(["FIXED", "PER_M2"]),
                 defaultPrice: z.number().optional(),
+                operationalCostPerM2: z.number().min(0).optional().default(0),
+                wastePercentage: z.number().min(0).optional().default(0),
             })
         )
         .mutation(async ({ ctx, input }) => {
@@ -35,6 +37,8 @@ export const serviceTypeRouter = createTRPCRouter({
                     name: input.name,
                     billingType: input.billingType,
                     defaultPrice: input.defaultPrice,
+                    operationalCostPerM2: input.operationalCostPerM2,
+                    wastePercentage: input.wastePercentage,
                 },
             });
         }),
@@ -64,6 +68,8 @@ export const serviceTypeRouter = createTRPCRouter({
                 name: z.string().min(1),
                 billingType: z.enum(["FIXED", "PER_M2"]),
                 defaultPrice: z.number().optional(),
+                operationalCostPerM2: z.number().min(0).optional().default(0),
+                wastePercentage: z.number().min(0).optional().default(0),
             })
         )
         .mutation(async ({ ctx, input }) => {
@@ -85,6 +91,8 @@ export const serviceTypeRouter = createTRPCRouter({
                     name: input.name,
                     billingType: input.billingType,
                     defaultPrice: input.defaultPrice,
+                    operationalCostPerM2: input.operationalCostPerM2,
+                    wastePercentage: input.wastePercentage,
                 },
             });
         }),

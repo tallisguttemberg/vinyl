@@ -24,7 +24,8 @@ import {
 const formSchema = z.object({
     name: z.string().min(1, "Nome é obrigatório"),
     billingType: z.enum(["FIXED", "PER_M2"]),
-    defaultPrice: z.coerce.number().optional(),
+    defaultPrice: z.coerce.number().optional().default(0),
+    varnishPricePerMl: z.coerce.number().min(0, "O preço do verniz por ML é obrigatório").default(0),
 });
 
 export type ServiceTypeFormValues = z.infer<typeof formSchema>;
@@ -42,6 +43,7 @@ export function ServiceTypeForm({ initialValues, onSubmit, isPending }: ServiceT
             name: "",
             billingType: "FIXED",
             defaultPrice: 0,
+            varnishPricePerMl: 0,
         },
     });
 
@@ -82,19 +84,34 @@ export function ServiceTypeForm({ initialValues, onSubmit, isPending }: ServiceT
                         </FormItem>
                     )}
                 />
-                <FormField
-                    control={form.control}
-                    name="defaultPrice"
-                    render={({ field }) => (
-                        <FormItem>
-                            <FormLabel>Preço Padrão (Opcional)</FormLabel>
-                            <FormControl>
-                                <Input type="number" step="0.01" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                        </FormItem>
-                    )}
-                />
+                <div className="grid grid-cols-2 gap-4">
+                    <FormField
+                        control={form.control}
+                        name="defaultPrice"
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>Preço Padrão (Opcional)</FormLabel>
+                                <FormControl>
+                                    <Input type="number" step="0.01" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                    <FormField
+                        control={form.control}
+                        name="varnishPricePerMl"
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>Preço Verniz por ML (R$)</FormLabel>
+                                <FormControl>
+                                    <Input type="number" step="0.01" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                </div>
                 <Button type="submit" className="w-full" disabled={isPending}>
                     {isPending ? "Salvando..." : "Salvar"}
                 </Button>

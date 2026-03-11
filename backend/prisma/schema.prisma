@@ -10,15 +10,38 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum MaterialCategory {
+  ADHESIVE
+  LIQUID
+}
+
+enum MaterialUnit {
+  M2
+  ML
+}
+
 model Material {
   id              String   @id @default(cuid())
   organizationId  String
   name            String
-  pricePerRoll    Decimal  @db.Decimal(10, 2)
-  rollLength      Decimal  @db.Decimal(10, 2) // in meters
-  width           Decimal  @db.Decimal(10, 2) // in meters
-  costPerLinearMeter Decimal @db.Decimal(10, 2)
-  costPerSqMeter  Decimal  @db.Decimal(10, 2)
+  category        MaterialCategory @default(ADHESIVE)
+  unit            MaterialUnit     @default(M2)
+  
+  // Financials
+  pricePerRoll    Decimal  @db.Decimal(10, 2) // Base price (Roll or Bottle)
+  
+  // Specific for ADHESIVE
+  rollLength      Decimal? @db.Decimal(10, 2) // in meters
+  width           Decimal? @db.Decimal(10, 2) // in meters
+  
+  // Specific for LIQUID
+  volume          Decimal? @db.Decimal(10, 2) // in ML
+  
+  // Calculated Costs
+  costPerLinearMeter Decimal? @db.Decimal(10, 2)
+  costPerSqMeter     Decimal? @db.Decimal(10, 2)
+  costPerMl          Decimal? @db.Decimal(10, 2)
+  
   stockAmount     Decimal  @default(0) @db.Decimal(10, 2)
   
   createdAt       DateTime @default(now())
@@ -45,14 +68,18 @@ enum BillingType {
 }
 
 model ServiceType {
-  id              String      @id @default(cuid())
-  organizationId  String
-  name            String
-  billingType     BillingType
-  defaultPrice    Decimal?    @db.Decimal(10, 2) // Optional default price
+  id                    String      @id @default(cuid())
+  organizationId        String
+  name                  String
+  billingType           BillingType
+  defaultPrice          Decimal?    @db.Decimal(10, 2) // Optional default price
   
-  createdAt       DateTime    @default(now())
-  updatedAt       DateTime    @updatedAt
+  // Financials
+  operationalCostPerM2  Decimal?    @default(0) @db.Decimal(10, 2) // Overhead/Machine cost per m²
+  wastePercentage       Decimal?    @default(0) @db.Decimal(5, 2) // Default waste % for this service
+  
+  createdAt             DateTime    @default(now())
+  updatedAt             DateTime    @updatedAt
 
   orderItems      OrderItem[]
 
@@ -73,14 +100,30 @@ model Order {
   status          OrderStatus @default(PENDING)
   
   // Financials
-  totalAmount     Decimal     @db.Decimal(10, 2) // Revenue
-  totalCost       Decimal     @db.Decimal(10, 2) // Material Cost
+  totalAmount     Decimal     @db.Decimal(10, 2) // Gross Revenue
+  totalCost       Decimal     @db.Decimal(10, 2) // Material Cost + Operational Cost + Finishings
+  totalMaterialCost Decimal   @default(0) @db.Decimal(10, 2) // Cost of raw materials
+  totalOperationalCost Decimal @default(0) @db.Decimal(10, 2) // Portion of total cost that is operational
+  totalFinishingCost Decimal  @default(0) @db.Decimal(10, 2) // Cost of extras/finishings
   totalCommission Decimal     @db.Decimal(10, 2) // Commission
-  profit          Decimal     @db.Decimal(10, 2) // Profit
-  margin          Decimal     @db.Decimal(5, 2)  // Margin %
+  profit          Decimal     @db.Decimal(10, 2) // Net Profit = Gross Revenue - Total Cost - Commission
+  margin          Decimal     @db.Decimal(5, 2)  // Net Margin %
   
   commissionRate  Decimal     @default(0) @db.Decimal(5, 2) // %
-  wastePercentage Decimal     @default(0) @db.Decimal(5, 2) // %
+  
+  discountType    String      @default("PERCENTAGE") // "PERCENTAGE" | "FIXED"
+  discountValue   Decimal     @default(0) @db.Decimal(10, 2)
+
+  vendedorId      String?
+  vendedor        User?       @relation("OrderVendedor", fields: [vendedorId], references: [id])
+
+  creatorId       String?
+  creator         User?       @relation("OrderCreator", fields: [creatorId], references: [id])
+
+  logs            OrderLog[]
+
+  @@index([vendedorId])
+  deletedAt       DateTime?
 
   createdAt       DateTime    @default(now())
   updatedAt       DateTime    @updatedAt
@@ -89,6 +132,7 @@ model Order {
 
   @@index([organizationId])
 }
+
 
 model OrderItem {
   id              String      @id @default(cuid())
@@ -103,14 +147,33 @@ model OrderItem {
   
   width           Decimal     @default(0) @db.Decimal(10, 2) // in meters
   height          Decimal     @default(0) @db.Decimal(10, 2) // in meters
+  mlUsed          Decimal     @default(0) @db.Decimal(10, 2) // in milliliters
   quantity        Int         @default(1)
   
+  // Financial rules
+  wastePercentage Decimal     @default(0) @db.Decimal(5, 2) // % over material cost
+  
   price           Decimal     @db.Decimal(10, 2) // Price for this item (revenue)
-  cost            Decimal     @db.Decimal(10, 2) // Material cost for this item
+  cost            Decimal     @db.Decimal(10, 2) // Target material cost before waste
+  operationalCost Decimal     @default(0) @db.Decimal(10, 2) // Machine/Labor overhead for this item
+  
+  finishings      OrderItemFinishing[]
 
   @@index([orderId])
   @@index([serviceTypeId])
   @@index([materialId])
+}
+
+model OrderItemFinishing {
+  id              String      @id @default(cuid())
+  orderItemId     String
+  orderItem       OrderItem   @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+  
+  name            String      // e.g "Verniz", "Ilhós", "Solda"
+  price           Decimal     @db.Decimal(10, 2) // How much we charge the customer
+  cost            Decimal     @default(0) @db.Decimal(10, 2) // Our internal cost (e.g material + labor)
+  
+  @@index([orderItemId])
 }
 
 model OrganizationSettings {
@@ -122,6 +185,10 @@ model OrganizationSettings {
   email           String?
   taxId           String?  // CNPJ or CPF
   logoUrl         String?
+  
+  // Financial Rules
+  commissionBase          String   @default("GROSS_REVENUE") // "GROSS_REVENUE" | "GROSS_PROFIT"
+  minimumMarginAllowed    Decimal  @default(20) @db.Decimal(5, 2) // % Minimum profit margin allowed
   
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
@@ -166,6 +233,9 @@ model User {
   auditLogs      AuditLog[] @relation("UserActionResponsible")
   createdLogs    AuditLog[] @relation("UserActionCreated")
   permissoes     UserPermission[]
+  vendas         Order[]    @relation("OrderVendedor")
+  ordersCreated  Order[]    @relation("OrderCreator")
+  orderLogs      OrderLog[] @relation("OrderLogs")
   
   @@index([organizationId])
 }
@@ -192,5 +262,21 @@ model UserPermission {
   excluir    Boolean @default(false)
 
   @@unique([userId, modulo])
+  @@index([userId])
+}
+
+model OrderLog {
+  id              String   @id @default(cuid())
+  orderId         String
+  order           Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  userId          String?   
+  user            User?    @relation("OrderLogs", fields: [userId], references: [id])
+  action          String   
+  previousStatus  String?
+  newStatus       String?
+  reason          String?
+  createdAt       DateTime @default(now())
+
+  @@index([orderId])
   @@index([userId])
 }

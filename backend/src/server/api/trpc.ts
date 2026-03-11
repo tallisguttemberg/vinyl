@@ -5,7 +5,7 @@ import { prisma } from "../../lib/prisma";
 
 // Basic Token for Admin (In a real app, this would be a JWT or session from DB)
 const ADMIN_TOKEN = "admin-token";
-const ADMIN_ORG_ID = "admin-org";
+const ADMIN_ORG_ID = "default";
 
 /**
  * 1. CONTEXT
@@ -27,6 +27,8 @@ export const createTRPCContext = async (opts: CreateContextOptions) => {
             userId: "admin",
             orgId: ADMIN_ORG_ID,
             perfil: "ADMIN",
+            nome: "Administrador Sistema",
+            usuario: "admin",
             permissoes: [] // Admin bypasses checks or has all
         };
     } else if (token) {
@@ -38,6 +40,8 @@ export const createTRPCContext = async (opts: CreateContextOptions) => {
                 organizationId: true,
                 status: true,
                 perfil: true,
+                nomeCompleto: true,
+                usuario: true,
                 permissoes: {
                     select: {
                         modulo: true,
@@ -55,6 +59,8 @@ export const createTRPCContext = async (opts: CreateContextOptions) => {
                 userId: user.id,
                 orgId: user.organizationId,
                 perfil: user.perfil,
+                nome: user.nomeCompleto,
+                usuario: user.usuario,
                 permissoes: user.permissoes,
             };
         }

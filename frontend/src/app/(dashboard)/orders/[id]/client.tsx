@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { api } from "@/trpc/react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -13,6 +14,9 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { ArrowLeft, Printer, Edit, Trash2, CheckCircle2, Clock, XCircle } from "lucide-react";
 import Link from "next/link";
 import { format } from "date-fns";
@@ -21,8 +25,15 @@ import { useRouter } from "next/navigation";
 export default function OrderDetailsClient({ id }: { id: string }) {
     const { data: order, isLoading } = api.order.getById.useQuery({ id });
     const { data: settings } = api.organizationSettings.getSettings.useQuery();
+    const { data: user } = api.user.getMe.useQuery();
     const utils = api.useUtils();
     const router = useRouter();
+
+    const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
+    const [pendingStatus, setPendingStatus] = useState<"PENDING" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED" | null>(null);
+    const [adminPassword, setAdminPassword] = useState("");
+    const [adminReason, setAdminReason] = useState("");
+    const [passwordError, setPasswordError] = useState("");
 
     const deleteOrder = api.order.delete.useMutation({
         onSuccess: () => {
@@ -33,8 +44,44 @@ export default function OrderDetailsClient({ id }: { id: string }) {
     const updateStatus = api.order.updateStatus.useMutation({
         onSuccess: () => {
             utils.order.getById.invalidate({ id });
+            setIsPasswordModalOpen(false);
+            setAdminPassword("");
+            setAdminReason("");
+            setPasswordError("");
         },
+        onError: (error) => {
+            setPasswordError(error.message);
+        }
     });
+
+    const handleStatusUpdate = (status: "PENDING" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED") => {
+        if (!order) return;
+        
+        const isLockedStatus = order.status === "COMPLETED" || order.status === "CANCELLED";
+        if (isLockedStatus && status !== order.status) {
+            setPendingStatus(status);
+            setIsPasswordModalOpen(true);
+            return;
+        }
+
+        updateStatus.mutate({ id, status });
+    };
+
+    const handlePasswordSubmit = () => {
+        if (!pendingStatus) return;
+        
+        if (!adminPassword) {
+            setPasswordError("Senha obrigatória");
+            return;
+        }
+
+        updateStatus.mutate({ 
+            id, 
+            status: pendingStatus,
+            adminPassword,
+            reason: adminReason ? adminReason : undefined
+        });
+    };
 
     const handleDelete = () => {
         if (confirm("Tem certeza que deseja excluir esta ordem?")) {
@@ -146,12 +193,30 @@ export default function OrderDetailsClient({ id }: { id: string }) {
                                                 {item.material && (
                                                     <div className="text-sm text-muted-foreground">{item.material.name}</div>
                                                 )}
+                                                {item.finishings.length > 0 && (
+                                                    <div className="mt-1 flex gap-1 flex-wrap">
+                                                        {item.finishings.map(finishing => (
+                                                             <Badge key={finishing.id} variant="secondary" className="text-[10px] py-0 px-1">
+                                                                 + {finishing.name}
+                                                             </Badge>
+                                                        ))}
+                                                    </div>
+                                                )}
                                             </TableCell>
                                             <TableCell className="text-right">
-                                                {Number(item.width).toFixed(2)}m x {Number(item.height).toFixed(2)}m
-                                                <div className="text-xs text-muted-foreground">
-                                                    {(Number(item.width) * Number(item.height)).toFixed(2)} m²
-                                                </div>
+                                                {item.material && (item.material as any).category === "LIQUID" ? (
+                                                    <>
+                                                        {Number((item as any).mlUsed).toFixed(0)} ml
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        {Number(item.width).toFixed(2)}m x {Number(item.height).toFixed(2)}m
+                                                        <div className="text-xs text-muted-foreground">
+                                                            {(Number(item.width) * Number(item.height)).toFixed(2)} m²
+                                                            {Number(item.wastePercentage) > 0 && <span className="ml-1 text-red-400">({Number(item.wastePercentage)}% desp.)</span>}
+                                                        </div>
+                                                    </>
+                                                )}
                                             </TableCell>
                                             <TableCell className="text-right">{item.quantity}</TableCell>
                                             <TableCell className="text-right font-medium">
@@ -173,32 +238,32 @@ export default function OrderDetailsClient({ id }: { id: string }) {
                             <Button
                                 variant={order.status === 'PENDING' ? 'default' : 'outline'}
                                 size="sm"
-                                onClick={() => updateStatus.mutate({ id, status: 'PENDING' })}
-                                disabled={updateStatus.isPending}
+                                onClick={() => handleStatusUpdate('PENDING')}
+                                disabled={updateStatus.isPending || (order.status === 'PENDING')}
                             >
                                 <Clock className="mr-2 h-4 w-4" /> Pendente
                             </Button>
                             <Button
                                 variant={order.status === 'IN_PROGRESS' ? 'default' : 'outline'}
                                 size="sm"
-                                onClick={() => updateStatus.mutate({ id, status: 'IN_PROGRESS' })}
-                                disabled={updateStatus.isPending}
+                                onClick={() => handleStatusUpdate('IN_PROGRESS')}
+                                disabled={updateStatus.isPending || (order.status === 'IN_PROGRESS')}
                             >
                                 <Clock className="mr-2 h-4 w-4" /> Em Produção
                             </Button>
                             <Button
                                 variant={order.status === 'COMPLETED' ? 'default' : 'outline'}
                                 size="sm"
-                                onClick={() => updateStatus.mutate({ id, status: 'COMPLETED' })}
-                                disabled={updateStatus.isPending}
+                                onClick={() => handleStatusUpdate('COMPLETED')}
+                                disabled={updateStatus.isPending || (order.status === 'COMPLETED')}
                             >
                                 <CheckCircle2 className="mr-2 h-4 w-4" /> Finalizado
                             </Button>
                             <Button
                                 variant={order.status === 'CANCELLED' ? 'destructive' : 'outline'}
                                 size="sm"
-                                onClick={() => updateStatus.mutate({ id, status: 'CANCELLED' })}
-                                disabled={updateStatus.isPending}
+                                onClick={() => handleStatusUpdate('CANCELLED')}
+                                disabled={updateStatus.isPending || (order.status === 'CANCELLED')}
                             >
                                 <XCircle className="mr-2 h-4 w-4" /> Cancelado
                             </Button>
@@ -223,14 +288,9 @@ export default function OrderDetailsClient({ id }: { id: string }) {
 
                             <div className="space-y-2 text-sm no-print">
                                 <div className="flex justify-between">
-                                    <span className="text-muted-foreground">Custo Material</span>
-                                    <span>R$ {Number(order.totalCost).toFixed(2)}</span>
+                                    <span className="text-muted-foreground">Custo Material & Op</span>
+                                    <span>R$ {(Number(order.totalCost) || 0).toFixed(2)}</span>
                                 </div>
-                                <div className="flex justify-between text-xs text-muted-foreground pl-2">
-                                    <span>Perda/Desperdício</span>
-                                    <span>{Number(order.wastePercentage)}%</span>
-                                </div>
-
                                 <div className="flex justify-between">
                                     <span className="text-muted-foreground">Comissões</span>
                                     <span>R$ {Number(order.totalCommission).toFixed(2)}</span>
@@ -261,7 +321,12 @@ export default function OrderDetailsClient({ id }: { id: string }) {
                         <CardHeader>
                             <CardTitle>Informações Adicionais</CardTitle>
                         </CardHeader>
-                        <CardContent className="space-y-2 text-sm">
+                        <CardContent className="space-y-4 text-sm">
+                            <div className="flex justify-between">
+                                <span className="text-muted-foreground">Vendedor</span>
+                                <span className="font-medium">{(order as any).vendedor?.nomeCompleto || "Nenhum"}</span>
+                            </div>
+                            <Separator />
                             <div className="flex justify-between">
                                 <span className="text-muted-foreground">Criado em</span>
                                 <span>{format(new Date(order.createdAt), "dd/MM/yyyy HH:mm")}</span>
@@ -274,6 +339,63 @@ export default function OrderDetailsClient({ id }: { id: string }) {
                     </Card>
                 </div>
             </div>
+            
+            <Dialog open={isPasswordModalOpen} onOpenChange={(open) => {
+                setIsPasswordModalOpen(open);
+                if (!open) {
+                    setAdminPassword("");
+                    setAdminReason("");
+                    setPasswordError("");
+                }
+            }}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Autorização de Administrador Necessária</DialogTitle>
+                        <DialogDescription>
+                            Esta ordem está <strong>{order.status === 'COMPLETED' ? 'Finalizada' : 'Cancelada'}</strong>.
+                            Apenas administradores podem alterar este status.
+                        </DialogDescription>
+                    </DialogHeader>
+                    
+                    <div className="space-y-4 py-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="adminPassword">Senha do Administrador</Label>
+                            <Input
+                                id="adminPassword"
+                                type="password"
+                                placeholder="Digite sua senha"
+                                value={adminPassword}
+                                onChange={(e) => {
+                                    setAdminPassword(e.target.value);
+                                    setPasswordError("");
+                                }}
+                            />
+                            {passwordError && (
+                                <p className="text-sm text-red-500 font-medium">{passwordError}</p>
+                            )}
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="adminReason">Motivo / Justificativa (Opcional)</Label>
+                            <Input
+                                id="adminReason"
+                                type="text"
+                                placeholder="Descreva por que está alterando esta ordem"
+                                value={adminReason}
+                                onChange={(e) => setAdminReason(e.target.value)}
+                            />
+                        </div>
+                    </div>
+                    
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setIsPasswordModalOpen(false)}>
+                            Cancelar
+                        </Button>
+                        <Button onClick={handlePasswordSubmit} disabled={updateStatus.isPending}>
+                            {updateStatus.isPending ? "Verificando..." : "Confirmar e Alterar"}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }

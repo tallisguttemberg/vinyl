@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { api } from "@/trpc/react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DollarSign, Package, Users, Clock, CheckCircle2, PlayCircle, XCircle } from "lucide-react";
@@ -7,6 +8,10 @@ import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea
 import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
 import { usePermission } from "@/hooks/usePermission";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
 
 const COLUMNS = [
     { id: "PENDING", title: "Pendente", icon: Clock, color: "text-yellow-500" },
@@ -23,6 +28,12 @@ export default function DashboardPage() {
     const canViewDashboard = hasPermission("dashboard", "visualizar");
     const canEditOrders = hasPermission("orders", "editar");
 
+    const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
+    const [pendingDragData, setPendingDragData] = useState<{ id: string, status: any } | null>(null);
+    const [adminPassword, setAdminPassword] = useState("");
+    const [adminReason, setAdminReason] = useState("");
+    const [passwordError, setPasswordError] = useState("");
+
     const { data: stats, isLoading: statsLoading } = api.order.getDashboardStats.useQuery(undefined, {
         enabled: !loadingPerms && canViewDashboard,
     });
@@ -35,9 +46,19 @@ export default function DashboardPage() {
             utils.order.getAll.invalidate();
             utils.order.getDashboardStats.invalidate();
             utils.material.getAll.invalidate(); // Invalidate materials because stock might change
+            
+            setIsPasswordModalOpen(false);
+            setAdminPassword("");
+            setAdminReason("");
+            setPasswordError("");
+            setPendingDragData(null);
         },
         onError: (err) => {
-            alert("Erro ao atualizar status: " + err.message);
+            if (isPasswordModalOpen) {
+                setPasswordError(err.message);
+            } else {
+                alert("Erro ao atualizar status: " + err.message);
+            }
         }
     });
 
@@ -48,9 +69,35 @@ export default function DashboardPage() {
         if (!destination) return;
         if (destination.droppableId === source.droppableId && destination.index === source.index) return;
 
+        const isLockedStatus = source.droppableId === "COMPLETED" || source.droppableId === "CANCELLED";
+        if (isLockedStatus) {
+            setPendingDragData({
+                id: draggableId,
+                status: destination.droppableId
+            });
+            setIsPasswordModalOpen(true);
+            return;
+        }
+
         updateStatus.mutate({
             id: draggableId,
             status: destination.droppableId as any
+        });
+    };
+
+    const handlePasswordSubmit = () => {
+        if (!pendingDragData) return;
+        
+        if (!adminPassword) {
+            setPasswordError("Senha obrigatória");
+            return;
+        }
+
+        updateStatus.mutate({ 
+            id: pendingDragData.id, 
+            status: pendingDragData.status,
+            adminPassword,
+            reason: adminReason ? adminReason : undefined
         });
     };
 
@@ -87,9 +134,14 @@ export default function DashboardPage() {
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold">R$ {stats?.totalRevenue.toFixed(2)}</div>
-                        <p className="text-xs text-muted-foreground">
-                            {stats?.orderCount} ordens ativas
-                        </p>
+                        <div className="flex justify-between items-center mt-1">
+                            <p className="text-xs text-muted-foreground">
+                                {stats?.orderCount} ordens ativas
+                            </p>
+                            <p className="text-[10px] font-medium text-sky-500">
+                                Projetado: R$ {stats?.projectedRevenue.toFixed(2)}
+                            </p>
+                        </div>
                     </CardContent>
                 </Card>
 
@@ -118,6 +170,11 @@ export default function DashboardPage() {
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold text-red-500">R$ {stats?.totalMaterialCost.toFixed(2)}</div>
+                        <div className="flex justify-end mt-1">
+                            <p className="text-[10px] font-medium text-red-400">
+                                Projetado: R$ {stats?.projectedMaterialCost.toFixed(2)}
+                            </p>
+                        </div>
                     </CardContent>
                 </Card>
 
@@ -128,12 +185,17 @@ export default function DashboardPage() {
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold text-orange-500">R$ {stats?.totalCommission.toFixed(2)}</div>
+                        <div className="flex justify-end mt-1">
+                            <p className="text-[10px] font-medium text-orange-400">
+                                Projetado: R$ {stats?.projectedCommission.toFixed(2)}
+                            </p>
+                        </div>
                     </CardContent>
                 </Card>
             </div>
 
             <DragDropContext onDragEnd={onDragEnd}>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 pb-8">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                     {COLUMNS.map((column) => (
                         <div key={column.id} className="flex flex-col bg-muted/50 rounded-lg p-4 min-h-[500px]">
                             <div className="flex items-center gap-2 mb-4">
@@ -191,6 +253,111 @@ export default function DashboardPage() {
                     ))}
                 </div>
             </DragDropContext>
+
+            <section className="space-y-4 pb-12">
+                <div>
+                    <h3 className="text-xl font-bold tracking-tight">Relatório de Comissões</h3>
+                    <p className="text-sm text-muted-foreground">Estatísticas por vendedor baseadas em ordens finalizadas.</p>
+                </div>
+                
+                <CommissionReport />
+            </section>
+            
+            <Dialog open={isPasswordModalOpen} onOpenChange={(open) => {
+                setIsPasswordModalOpen(open);
+                if (!open) {
+                    setAdminPassword("");
+                    setAdminReason("");
+                    setPasswordError("");
+                    setPendingDragData(null);
+                }
+            }}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Autorização de Administrador Necessária</DialogTitle>
+                        <DialogDescription>
+                            Esta ordem está <strong>Finalizada ou Cancelada</strong>.
+                            Apenas administradores podem alterar este status através do quadro.
+                        </DialogDescription>
+                    </DialogHeader>
+                    
+                    <div className="space-y-4 py-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="adminPassword">Senha do Administrador</Label>
+                            <Input
+                                id="adminPassword"
+                                type="password"
+                                placeholder="Digite sua senha"
+                                value={adminPassword}
+                                onChange={(e) => {
+                                    setAdminPassword(e.target.value);
+                                    setPasswordError("");
+                                }}
+                            />
+                            {passwordError && (
+                                <p className="text-sm text-red-500 font-medium">{passwordError}</p>
+                            )}
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="adminReason">Motivo / Justificativa (Opcional)</Label>
+                            <Input
+                                id="adminReason"
+                                type="text"
+                                placeholder="Descreva por que está alterando esta ordem"
+                                value={adminReason}
+                                onChange={(e) => setAdminReason(e.target.value)}
+                            />
+                        </div>
+                    </div>
+                    
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setIsPasswordModalOpen(false)}>
+                            Cancelar
+                        </Button>
+                        <Button onClick={handlePasswordSubmit} disabled={updateStatus.isPending}>
+                            {updateStatus.isPending ? "Verificando..." : "Confirmar e Alterar"}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+        </div>
+    );
+}
+
+function CommissionReport() {
+    const { data: report, isLoading } = api.order.getCommissionReport.useQuery();
+
+    if (isLoading) return <div className="text-sm">Carregando relatório...</div>;
+    if (!report || report.length === 0) return <div className="text-sm text-muted-foreground">Nenhuma comissão registrada para ordens finalizadas.</div>;
+
+    return (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {report.map((item) => (
+                <Card key={item.id} className="bg-primary/5 border-primary/20">
+                    <CardHeader className="pb-2">
+                        <CardTitle className="text-base flex justify-between items-center">
+                            <span>{item.name}</span>
+                            <Badge variant="outline" className="text-[10px]">{item.username}</Badge>
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="space-y-1">
+                            <div className="flex justify-between text-sm">
+                                <span className="text-muted-foreground">Ordens:</span>
+                                <span className="font-semibold">{item.orderCount}</span>
+                            </div>
+                            <div className="flex justify-between text-sm">
+                                <span className="text-muted-foreground">Vendas Totais:</span>
+                                <span className="font-semibold">R$ {item.totalRevenue.toFixed(2)}</span>
+                            </div>
+                            <div className="flex justify-between text-lg border-t pt-2 mt-2">
+                                <span className="font-bold text-primary">Comissão:</span>
+                                <span className="font-bold text-primary">R$ {item.totalCommission.toFixed(2)}</span>
+                            </div>
+                        </div>
+                    </CardContent>
+                </Card>
+            ))}
         </div>
     );
 }

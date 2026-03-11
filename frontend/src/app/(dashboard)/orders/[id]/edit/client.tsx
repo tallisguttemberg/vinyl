@@ -26,15 +26,25 @@ export function OrderEditClient({ id }: { id: string }) {
 
     const initialValues = {
         customerName: order.customerName,
+        vendedorId: (order as any).vendedorId ?? null,
         commissionRate: Number(order.commissionRate),
-        wastePercentage: Number(order.wastePercentage),
+        discountType: ((order as any).discountType ?? "PERCENTAGE") as "PERCENTAGE" | "FIXED",
+        discountValue: Number((order as any).discountValue ?? 0),
         items: order.items.map(item => ({
             serviceTypeId: item.serviceTypeId,
             materialId: item.materialId,
             width: Number(item.width),
             height: Number(item.height),
+            mlUsed: Number((item as any).mlUsed || 0),
             quantity: item.quantity,
-            unitPrice: Number(item.price) / item.quantity, // Price stored is total for item
+            priceInputType: "UNIT" as const,
+            unitPrice: Number(item.price) / item.quantity,
+            wastePercentage: Number((item as any).wastePercentage || 0),
+            finishings: (item as any).finishings ? (item as any).finishings.map((f: any) => ({
+                 name: f.name,
+                 price: Number(f.price),
+                 cost: Number(f.cost),
+            })) : [],
         })),
     };
 

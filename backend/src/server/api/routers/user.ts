@@ -24,7 +24,10 @@ const permissionSchema = z.object({
 export const userRouter = createTRPCRouter({
     // ─── Listar todos os usuários ─────────────────────────────────────────────
     getAll: checkPermission("users", "visualizar").query(async ({ ctx }) => {
+        // Admin do sistema não tem orgId fixo — retorna todos
+        const where = ctx.session.orgId ? { organizationId: ctx.session.orgId } : {};
         return ctx.prisma.user.findMany({
+            where,
             orderBy: { createdAt: "desc" },
             select: {
                 id: true,
@@ -133,21 +136,33 @@ export const userRouter = createTRPCRouter({
                         perfil: input.perfil,
                         telefone: input.telefone,
                         observacoes: input.observacoes,
+                        organizationId: ctx.session.orgId || "default",
                     },
                 });
 
-                // Salvar permissões se fornecidas e se for ADMIN
-                if (input.permissoes && input.permissoes.length > 0 && ctx.session.perfil === "ADMIN") {
-                    await tx.userPermission.createMany({
-                        data: input.permissoes.map((p) => ({
-                            userId: user.id,
-                            modulo: p.modulo,
-                            visualizar: p.visualizar,
-                            criar: p.criar,
-                            editar: p.editar,
-                            excluir: p.excluir,
-                        })),
-                    });
+                // Determinar permissões a salvar:
+                // - Se perfil ADMIN → garante CRUD completo em todos os módulos
+                // - Se não-ADMIN e permissões fornecidas → salva as fornecidas
+                const permsToSave = input.perfil === "ADMIN"
+                    ? SYSTEM_MODULES.map((m) => ({
+                        userId: user.id,
+                        modulo: m,
+                        visualizar: true,
+                        criar: true,
+                        editar: true,
+                        excluir: true,
+                    }))
+                    : (input.permissoes ?? []).map((p) => ({
+                        userId: user.id,
+                        modulo: p.modulo,
+                        visualizar: p.visualizar,
+                        criar: p.criar,
+                        editar: p.editar,
+                        excluir: p.excluir,
+                    }));
+
+                if (permsToSave.length > 0) {
+                    await tx.userPermission.createMany({ data: permsToSave });
                 }
 
                 // Log de auditoria
@@ -221,8 +236,17 @@ export const userRouter = createTRPCRouter({
                     },
                 });
 
-                // Upsert de permissões (apenas se for ADMIN)
-                if (permissoes !== undefined && ctx.session.perfil === "ADMIN") {
+                // Se perfil sendo alterado para ADMIN → garantir CRUD total em todos os módulos
+                if (rest.perfil === "ADMIN") {
+                    for (const modulo of SYSTEM_MODULES) {
+                        await tx.userPermission.upsert({
+                            where: { userId_modulo: { userId: id, modulo } },
+                            create: { userId: id, modulo, visualizar: true, criar: true, editar: true, excluir: true },
+                            update: { visualizar: true, criar: true, editar: true, excluir: true },
+                        });
+                    }
+                } else if (permissoes !== undefined && ctx.session.perfil === "ADMIN") {
+                    // Upsert de permissões customizadas (apenas se sessão é ADMIN)
                     for (const p of permissoes) {
                         await tx.userPermission.upsert({
                             where: { userId_modulo: { userId: id, modulo: p.modulo } },
