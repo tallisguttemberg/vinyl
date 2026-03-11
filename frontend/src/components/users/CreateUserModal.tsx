@@ -32,6 +32,41 @@ const userSchema = z.object({
 
 type UserFormValues = z.infer<typeof userSchema>;
 
+const DEFAULT_PERMS: Record<string, ModulePermission[]> = {
+    ADMIN: [
+        { modulo: "dashboard", visualizar: true, criar: true, editar: true, excluir: true },
+        { modulo: "orders", visualizar: true, criar: true, editar: true, excluir: true },
+        { modulo: "materials", visualizar: true, criar: true, editar: true, excluir: true },
+        { modulo: "services", visualizar: true, criar: true, editar: true, excluir: true },
+        { modulo: "settings", visualizar: true, criar: true, editar: true, excluir: true },
+        { modulo: "users", visualizar: true, criar: true, editar: true, excluir: true },
+    ],
+    GESTOR: [
+        { modulo: "dashboard", visualizar: true, criar: true, editar: true, excluir: true },
+        { modulo: "orders", visualizar: true, criar: true, editar: true, excluir: true },
+        { modulo: "materials", visualizar: true, criar: true, editar: true, excluir: true },
+        { modulo: "services", visualizar: true, criar: true, editar: true, excluir: true },
+        { modulo: "settings", visualizar: true, criar: true, editar: true, excluir: true },
+        { modulo: "users", visualizar: true, criar: false, editar: false, excluir: false },
+    ],
+    OPERADOR: [
+        { modulo: "dashboard", visualizar: true, criar: false, editar: false, excluir: false },
+        { modulo: "orders", visualizar: true, criar: true, editar: false, excluir: false },
+        { modulo: "materials", visualizar: true, criar: false, editar: false, excluir: false },
+        { modulo: "services", visualizar: true, criar: false, editar: false, excluir: false },
+        { modulo: "settings", visualizar: false, criar: false, editar: false, excluir: false },
+        { modulo: "users", visualizar: false, criar: false, editar: false, excluir: false },
+    ],
+    CLIENTE: [
+        { modulo: "dashboard", visualizar: false, criar: false, editar: false, excluir: false },
+        { modulo: "orders", visualizar: false, criar: false, editar: false, excluir: false },
+        { modulo: "materials", visualizar: false, criar: false, editar: false, excluir: false },
+        { modulo: "services", visualizar: false, criar: false, editar: false, excluir: false },
+        { modulo: "settings", visualizar: false, criar: false, editar: false, excluir: false },
+        { modulo: "users", visualizar: false, criar: false, editar: false, excluir: false },
+    ]
+};
+
 interface CreateUserModalProps {
     onSuccess: () => void;
 }
@@ -39,7 +74,7 @@ interface CreateUserModalProps {
 export function CreateUserModal({ onSuccess }: CreateUserModalProps) {
     const utils = api.useUtils();
     const [passwordStrength, setPasswordStrength] = useState(0);
-    const [permissions, setPermissions] = useState<ModulePermission[]>([]);
+    const [permissions, setPermissions] = useState<ModulePermission[]>(DEFAULT_PERMS.OPERADOR);
 
     const form = useForm<UserFormValues>({
         resolver: zodResolver(userSchema),
@@ -49,7 +84,7 @@ export function CreateUserModal({ onSuccess }: CreateUserModalProps) {
     });
 
     const createUser = api.user.create.useMutation({
-        onSuccess: () => { utils.user.getAll.invalidate(); form.reset(); setPermissions([]); onSuccess(); },
+        onSuccess: () => { utils.user.getAll.invalidate(); form.reset(); setPermissions(DEFAULT_PERMS.OPERADOR); onSuccess(); },
         onError: (err) => { alert(err.message); }
     });
 
@@ -140,7 +175,13 @@ export function CreateUserModal({ onSuccess }: CreateUserModalProps) {
                     <FormField control={form.control} name="perfil" render={({ field }) => (
                         <FormItem>
                             <FormLabel>Perfil</FormLabel>
-                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                            <Select 
+                                onValueChange={(value) => {
+                                    field.onChange(value);
+                                    setPermissions(DEFAULT_PERMS[value] || []);
+                                }} 
+                                defaultValue={field.value}
+                            >
                                 <FormControl><SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger></FormControl>
                                 <SelectContent>
                                     <SelectItem value="ADMIN">Admin</SelectItem>

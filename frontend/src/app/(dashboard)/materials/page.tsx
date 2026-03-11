@@ -135,11 +135,11 @@ export default function MaterialsPage() {
                     <TableHeader>
                         <TableRow>
                             <TableHead>Nome</TableHead>
-                            <TableHead>Preço Bobina</TableHead>
-                            <TableHead>Dimensões</TableHead>
-                            <TableHead>Estoque (m²)</TableHead>
-                            <TableHead>Custo Linear/m</TableHead>
-                            <TableHead>Custo m²</TableHead>
+                            <TableHead>Tipo</TableHead>
+                            <TableHead>Preço Base</TableHead>
+                            <TableHead>Dimen./Vol.</TableHead>
+                            <TableHead>Estoque</TableHead>
+                            <TableHead>Custo Unitário</TableHead>
                             <TableHead className="w-[120px]">Ações</TableHead>
                         </TableRow>
                     </TableHeader>
@@ -153,18 +153,28 @@ export default function MaterialsPage() {
                                 <TableCell colSpan={7} className="text-center">Nenhum material cadastrado.</TableCell>
                             </TableRow>
                         ) : (
-                            materials?.map((material) => (
+                            materials?.map((material: any) => (
                                 <TableRow key={material.id}>
                                     <TableCell className="font-medium">{material.name}</TableCell>
+                                    <TableCell>{material.category === "ADHESIVE" ? "Adesivo" : "Líquido"}</TableCell>
                                     <TableCell>R$ {Number(material.pricePerRoll).toFixed(2)}</TableCell>
-                                    <TableCell>{Number(material.width)}m x {Number(material.rollLength)}m</TableCell>
                                     <TableCell>
-                                        <span className={`font-semibold ${Number(material.stockAmount) < 5 ? 'text-red-500' : 'text-green-600'}`}>
-                                            {Number(material.stockAmount).toFixed(2)} m²
+                                        {material.category === "ADHESIVE"
+                                            ? `${Number(material.width)}m x ${Number(material.rollLength)}m`
+                                            : `${Number(material.volume)}ml`
+                                        }
+                                    </TableCell>
+                                    <TableCell>
+                                        <span className={`font-semibold ${Number(material.stockAmount) < (material.category === 'ADHESIVE' ? 5 : 100) ? 'text-red-500' : 'text-green-600'}`}>
+                                            {Number(material.stockAmount).toFixed(2)} {material.category === "ADHESIVE" ? "m²" : "ml"}
                                         </span>
                                     </TableCell>
-                                    <TableCell>R$ {Number(material.costPerLinearMeter).toFixed(2)}</TableCell>
-                                    <TableCell>R$ {Number(material.costPerSqMeter).toFixed(2)}</TableCell>
+                                    <TableCell>
+                                        {material.category === "ADHESIVE"
+                                            ? `R$ ${Number(material.costPerSqMeter).toFixed(2)}/m²`
+                                            : `R$ ${Number(material.costPerMl).toFixed(2)}/ml`
+                                        }
+                                    </TableCell>
                                     <TableCell>
                                         <div className="flex items-center gap-2">
                                             {hasPermission("materials", "editar") && (
@@ -188,9 +198,12 @@ export default function MaterialsPage() {
                                                         setEditingMaterial({
                                                             id: material.id,
                                                             name: material.name,
+                                                            category: material.category as any,
+                                                            unit: material.unit as any,
                                                             pricePerRoll: Number(material.pricePerRoll),
                                                             rollLength: Number(material.rollLength),
                                                             width: Number(material.width),
+                                                            volume: Number(material.volume),
                                                             stockAmount: Number(material.stockAmount),
                                                         });
                                                         setEditOpen(true);
@@ -225,7 +238,9 @@ export default function MaterialsPage() {
                     </DialogHeader>
                     <div className="space-y-4 py-4">
                         <div className="space-y-2">
-                            <Label htmlFor="quantity">Quantidade a adicionar (m²)</Label>
+                            <Label htmlFor="quantity">
+                                Quantidade a adicionar ({materials?.find(m => m.id === selectedMaterialId)?.category === "ADHESIVE" ? "m²" : "ml"})
+                            </Label>
                             <Input
                                 id="quantity"
                                 type="number"

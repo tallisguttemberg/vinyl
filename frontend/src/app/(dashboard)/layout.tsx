@@ -15,16 +15,16 @@ export default function DashboardLayout({
     return (
         <div className="h-full relative">
             <div className={cn(
-                "hidden h-full md:flex md:flex-col md:fixed md:inset-y-0 z-[80] bg-gray-900 transition-all duration-300",
+                "hidden h-full md:flex md:flex-col md:fixed md:inset-y-0 z-[80] bg-sidebar border-r border-border transition-all duration-300",
                 isCollapsed ? "md:w-20" : "md:w-72"
             )}>
                 <Sidebar isCollapsed={isCollapsed} onToggle={() => setIsCollapsed(!isCollapsed)} />
             </div>
             <main className={cn(
-                "bg-gray-950 min-h-screen transition-all duration-300",
+                "bg-background text-foreground min-h-screen transition-all duration-300",
                 isCollapsed ? "md:pl-20" : "md:pl-72"
             )}>
-                <Navbar onToggle={() => setIsCollapsed(!isCollapsed)} isSidebarCollapsed={isCollapsed} />
+                <Navbar />
                 <div className="p-8">
                     {children}
                 </div>

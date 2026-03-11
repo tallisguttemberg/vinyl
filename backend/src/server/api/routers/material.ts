@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { createTRPCRouter, checkPermission } from "../trpc";
-import { calculateMaterialCost } from "../../../lib/calculations";
+import { calculateMaterialCost, calculateLiquidCost } from "../../../lib/calculations";
 import { TRPCError } from "@trpc/server";
 
 // Contrato da nova Skill
@@ -28,9 +28,12 @@ export const materialRouter = createTRPCRouter({
         .input(
             z.object({
                 name: z.string().min(1),
+                category: z.enum(["ADHESIVE", "LIQUID"]).default("ADHESIVE"),
+                unit: z.enum(["M2", "ML"]).default("M2"),
                 pricePerRoll: z.number().min(0),
-                rollLength: z.number().min(0),
-                width: z.number().min(0),
+                rollLength: z.number().min(0).optional(),
+                width: z.number().min(0).optional(),
+                volume: z.number().min(0).optional(),
                 stockAmount: z.number().default(0),
             })
         )
@@ -39,21 +42,36 @@ export const materialRouter = createTRPCRouter({
                 throw new TRPCError({ code: "UNAUTHORIZED", message: "No Organization Selected" });
             }
 
-            const costs = calculateMaterialCost(
-                input.pricePerRoll,
-                input.rollLength,
-                input.width
-            );
+            let costs = { costPerLinearMeter: 0, costPerSqMeter: 0, costPerMl: 0 };
+
+            if (input.category === "ADHESIVE") {
+                const adhesiveCosts = calculateMaterialCost(
+                    input.pricePerRoll,
+                    input.rollLength || 0,
+                    input.width || 0
+                );
+                costs = { ...costs, ...adhesiveCosts };
+            } else {
+                const liquidCosts = calculateLiquidCost(
+                    input.pricePerRoll,
+                    input.volume || 0
+                );
+                costs = { ...costs, ...liquidCosts };
+            }
 
             return ctx.prisma.material.create({
                 data: {
                     organizationId: ctx.session.orgId,
                     name: input.name,
+                    category: input.category,
+                    unit: input.unit,
                     pricePerRoll: input.pricePerRoll,
-                    rollLength: input.rollLength,
-                    width: input.width,
+                    rollLength: (input.rollLength ?? null) as any,
+                    width: (input.width ?? null) as any,
+                    volume: (input.volume ?? null) as any,
                     costPerLinearMeter: costs.costPerLinearMeter,
                     costPerSqMeter: costs.costPerSqMeter,
+                    costPerMl: costs.costPerMl,
                     stockAmount: input.stockAmount,
                 },
             });
@@ -83,9 +101,12 @@ export const materialRouter = createTRPCRouter({
             z.object({
                 id: z.string(),
                 name: z.string().min(1),
+                category: z.enum(["ADHESIVE", "LIQUID"]),
+                unit: z.enum(["M2", "ML"]),
                 pricePerRoll: z.number().min(0),
-                rollLength: z.number().min(0),
-                width: z.number().min(0),
+                rollLength: z.number().min(0).optional(),
+                width: z.number().min(0).optional(),
+                volume: z.number().min(0).optional(),
                 stockAmount: z.number().optional(),
             })
         )
@@ -102,21 +123,36 @@ export const materialRouter = createTRPCRouter({
                 throw new TRPCError({ code: "NOT_FOUND" });
             }
 
-            const costs = calculateMaterialCost(
-                input.pricePerRoll,
-                input.rollLength,
-                input.width
-            );
+            let costs = { costPerLinearMeter: 0, costPerSqMeter: 0, costPerMl: 0 };
+
+            if (input.category === "ADHESIVE") {
+                const adhesiveCosts = calculateMaterialCost(
+                    input.pricePerRoll,
+                    input.rollLength || 0,
+                    input.width || 0
+                );
+                costs = { ...costs, ...adhesiveCosts };
+            } else {
+                const liquidCosts = calculateLiquidCost(
+                    input.pricePerRoll,
+                    input.volume || 0
+                );
+                costs = { ...costs, ...liquidCosts };
+            }
 
             return ctx.prisma.material.update({
                 where: { id: input.id },
                 data: {
                     name: input.name,
+                    category: input.category,
+                    unit: input.unit,
                     pricePerRoll: input.pricePerRoll,
-                    rollLength: input.rollLength,
-                    width: input.width,
+                    rollLength: (input.rollLength ?? null) as any,
+                    width: (input.width ?? null) as any,
+                    volume: (input.volume ?? null) as any,
                     costPerLinearMeter: costs.costPerLinearMeter,
                     costPerSqMeter: costs.costPerSqMeter,
+                    costPerMl: costs.costPerMl,
                     stockAmount: input.stockAmount,
                 },
             });

@@ -118,17 +118,18 @@ export default function ServicesPage() {
                             <TableHead>Nome</TableHead>
                             <TableHead>Tipo de Cobrança</TableHead>
                             <TableHead>Preço Padrão</TableHead>
+                            <TableHead>Preço Verniz / ML</TableHead>
                             <TableHead className="w-[120px]">Ações</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
                         {isLoading ? (
                             <TableRow>
-                                <TableCell colSpan={4} className="text-center">Carregando...</TableCell>
+                                <TableCell colSpan={5} className="text-center">Carregando...</TableCell>
                             </TableRow>
                         ) : services?.length === 0 ? (
                             <TableRow>
-                                <TableCell colSpan={4} className="text-center">Nenhum serviço cadastrado.</TableCell>
+                                <TableCell colSpan={5} className="text-center">Nenhum serviço cadastrado.</TableCell>
                             </TableRow>
                         ) : (
                             services?.map((service) => (
@@ -143,6 +144,9 @@ export default function ServicesPage() {
                                             : "-"}
                                     </TableCell>
                                     <TableCell>
+                                        {`R$ ${Number((service as any).varnishPricePerMl || 0).toFixed(2)}`}
+                                    </TableCell>
+                                    <TableCell>
                                         <div className="flex items-center gap-2">
                                             {hasPermission("services", "editar") && (
                                                 <Button
@@ -154,6 +158,7 @@ export default function ServicesPage() {
                                                             name: service.name,
                                                             billingType: service.billingType as "FIXED" | "PER_M2",
                                                             defaultPrice: Number(service.defaultPrice),
+                                                            varnishPricePerMl: Number((service as any).varnishPricePerMl || 0),
                                                         });
                                                         setEditOpen(true);
                                                     }}

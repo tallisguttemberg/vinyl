@@ -14,7 +14,8 @@ import {
     Building2,
     Users,
     ChevronLeft,
-    ChevronRight
+    ChevronRight,
+    FileText
 } from "lucide-react";
 
 interface SidebarProps {
@@ -27,43 +28,50 @@ const routes = [
         label: "Dashboard",
         icon: LayoutDashboard,
         href: "/",
-        color: "text-sky-500",
+        color: "text-sky-400",
         module: "dashboard",
     },
     {
         label: "Ordens",
         icon: ShoppingCart,
         href: "/orders",
-        color: "text-violet-500",
+        color: "text-violet-400",
         module: "orders",
     },
     {
         label: "Materiais",
         icon: Package,
         href: "/materials",
-        color: "text-pink-700",
+        color: "text-pink-400",
         module: "materials",
     },
     {
         label: "Tipos de Serviço",
         icon: Settings2,
         href: "/services",
-        color: "text-orange-700",
+        color: "text-orange-400",
         module: "services",
     },
     {
         label: "Configurações",
         icon: Building2,
         href: "/settings",
-        color: "text-gray-500",
+        color: "text-zinc-400",
         module: "settings",
     },
     {
         label: "Usuários",
         icon: Users,
         href: "/users",
-        color: "text-indigo-500",
+        color: "text-indigo-400",
         module: "users",
+    },
+    {
+        label: "Logs de Status",
+        icon: FileText,
+        href: "/reports/logs",
+        color: "text-emerald-400",
+        module: "orders",
     },
 ];
 
@@ -86,7 +94,7 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
 
     return (
         <div className={cn(
-            "space-y-4 py-4 flex flex-col h-full bg-slate-900 text-white transition-all duration-300 relative",
+            "space-y-4 py-4 flex flex-col h-full bg-sidebar text-sidebar-foreground transition-all duration-300 relative",
             isCollapsed ? "w-20" : "w-72"
         )}>
             {/* Botão de Toggle - Design Premium */}
@@ -137,10 +145,13 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
                     {!isCollapsed && (
                         <div className="flex flex-col">
                             <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">
-                                Empresa
-                            </p>
-                            <p className="text-sm font-bold text-white truncate max-w-[180px]">
                                 {settings?.businessName || "Admin Vinyl"}
+                            </p>
+                            <p className="text-sm font-bold text-sidebar-foreground truncate max-w-[180px]">
+                                {(user as any)?.nome || "Usuário"}
+                            </p>
+                            <p className="text-[10px] text-zinc-500 font-medium bg-zinc-800/50 w-fit px-1.5 py-0.5 rounded mt-0.5">
+                                {(user as any)?.perfil || "OPERADOR"}
                             </p>
                         </div>
                     )}
@@ -153,8 +164,8 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
                             href={route.href}
                             title={isCollapsed ? route.label : ""}
                             className={cn(
-                                "text-sm group flex p-3 w-full justify-start font-medium cursor-pointer hover:text-white hover:bg-white/10 rounded-lg transition",
-                                pathname === route.href ? "text-white bg-white/10" : "text-zinc-400",
+                                "text-sm group flex p-3 w-full justify-start font-medium cursor-pointer hover:text-sidebar-foreground hover:bg-sidebar-accent rounded-lg transition",
+                                pathname === route.href ? "text-sidebar-foreground bg-sidebar-accent" : "text-sidebar-foreground/70",
                                 isCollapsed ? "justify-center" : ""
                             )}
                         >
