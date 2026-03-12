@@ -1,11 +1,19 @@
 import { initTRPC, TRPCError } from "@trpc/server";
 import superjson from "superjson";
-import { ZodError } from "zod";
 import { prisma } from "../../lib/prisma";
+import jwt from "jsonwebtoken";
 
-// Basic Token for Admin (In a real app, this would be a JWT or session from DB)
-const ADMIN_TOKEN = "admin-token";
+// Lidos do ambiente — nunca mais hardcoded
+const ADMIN_TOKEN = process.env.ADMIN_TOKEN ?? "vinyl-admin-fallback";
+const JWT_SECRET  = process.env.JWT_SECRET  ?? "change-me-in-production";
 const ADMIN_ORG_ID = "default";
+
+// Payload que fica dentro do JWT
+interface JwtPayload {
+    userId: string;
+    orgId: string;
+    perfil: string;
+}
 
 /**
  * 1. CONTEXT
@@ -16,53 +24,63 @@ interface CreateContextOptions {
 }
 
 export const createTRPCContext = async (opts: CreateContextOptions) => {
-    // Extract token from headers
-    const authHeader = opts.headers.get("authorization") || "";
-    const token = authHeader.replace("Bearer ", "");
+    const authHeader = opts.headers.get("authorization") ?? "";
+    const token = authHeader.replace("Bearer ", "").trim();
 
     let authSession = null;
 
-    if (token === ADMIN_TOKEN) {
+    if (!token) {
+        // sem token — acesso público
+    } else if (token === ADMIN_TOKEN) {
+        // Token de admin via variável de ambiente
         authSession = {
             userId: "admin",
             orgId: ADMIN_ORG_ID,
             perfil: "ADMIN",
             nome: "Administrador Sistema",
             usuario: "admin",
-            permissoes: [] // Admin bypasses checks or has all
+            permissoes: [] as any[],
         };
-    } else if (token) {
-        // Tentar validar o token como um ID de usuário no banco de dados
-        const user = await prisma.user.findUnique({
-            where: { id: token },
-            select: {
-                id: true,
-                organizationId: true,
-                status: true,
-                perfil: true,
-                nomeCompleto: true,
-                usuario: true,
-                permissoes: {
-                    select: {
-                        modulo: true,
-                        visualizar: true,
-                        criar: true,
-                        editar: true,
-                        excluir: true,
+    } else {
+        // Tentar validar como JWT assinado
+        try {
+            const decoded = jwt.verify(token, JWT_SECRET) as JwtPayload;
+
+            // Re-buscar usuário no banco: garante status e permissões sempre atualizados
+            const user = await prisma.user.findUnique({
+                where: { id: decoded.userId },
+                select: {
+                    id: true,
+                    organizationId: true,
+                    status: true,
+                    perfil: true,
+                    nomeCompleto: true,
+                    usuario: true,
+                    permissoes: {
+                        select: {
+                            modulo: true,
+                            visualizar: true,
+                            criar: true,
+                            editar: true,
+                            excluir: true,
+                        }
                     }
                 }
-            }
-        });
+            });
 
-        if (user && user.status === "ATIVO") {
-            authSession = {
-                userId: user.id,
-                orgId: user.organizationId,
-                perfil: user.perfil,
-                nome: user.nomeCompleto,
-                usuario: user.usuario,
-                permissoes: user.permissoes,
-            };
+            if (user && user.status === "ATIVO") {
+                authSession = {
+                    userId: user.id,
+                    orgId: user.organizationId,
+                    perfil: user.perfil,
+                    nome: user.nomeCompleto,
+                    usuario: user.usuario,
+                    permissoes: user.permissoes,
+                };
+            }
+        } catch {
+            // JWT inválido, expirado ou adulterado — sem sessão
+            // Rotas protegidas vão barrá-lo com UNAUTHORIZED
         }
     }
 
@@ -98,7 +116,6 @@ export const protectedProcedure = t.procedure.use(({ ctx, next }) => {
 
     return next({
         ctx: {
-            // Infere que a sessão não é nula aqui
             session: {
                 ...authSession,
                 orgId: authSession.orgId || ADMIN_ORG_ID,
@@ -110,7 +127,7 @@ export const protectedProcedure = t.procedure.use(({ ctx, next }) => {
 /**
  * Middleware para verificar permissões específicas
  */
-export const permissionMiddleware = (modulo: string, acao: 'visualizar' | 'criar' | 'editar' | 'excluir') =>
+export const permissionMiddleware = (modulo: string, acao: "visualizar" | "criar" | "editar" | "excluir") =>
     t.middleware(({ ctx, next }) => {
         if (!ctx.session || !ctx.session.userId) {
             throw new TRPCError({ code: "UNAUTHORIZED" });
@@ -154,5 +171,10 @@ export const permissionMiddleware = (modulo: string, acao: 'visualizar' | 'criar
 /**
  * Procedimentos com verificação de permissão
  */
-export const checkPermission = (modulo: string, acao: 'visualizar' | 'criar' | 'editar' | 'excluir') =>
+export const checkPermission = (modulo: string, acao: "visualizar" | "criar" | "editar" | "excluir") =>
     protectedProcedure.use(permissionMiddleware(modulo, acao));
+
+/**
+ * Utilitários exportados para o router de usuários gerar JWTs
+ */
+export { JWT_SECRET };

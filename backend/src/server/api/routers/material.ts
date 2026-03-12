@@ -173,6 +173,7 @@ export const materialRouter = createTRPCRouter({
                 // A) Criar o registro de histórico (a "prova" da entrada)
                 const entry = await tx.materialEntry.create({
                     data: {
+                        organizationId: ctx.session.orgId!,
                         materialId: input.materialId,
                         quantity: input.quantityAdded,
                         note: input.note,

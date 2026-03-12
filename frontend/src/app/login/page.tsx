@@ -28,15 +28,6 @@ export default function LoginPage() {
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         setError("");
-
-        // Mantendo compatibilidade legada se necessário, ou removendo para usar apenas DB
-        if (username === "admin" && password === "admin") {
-            localStorage.setItem("vinyl-token", "admin-token");
-            document.cookie = "vinyl-session=admin-token; path=/";
-            router.push("/");
-            return;
-        }
-
         loginMutation.mutate({ usuario: username, senha: password });
     };
 

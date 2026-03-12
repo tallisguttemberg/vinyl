@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { createTRPCRouter, checkPermission } from "../trpc";
 import { calculateOrder } from "../../../lib/calculations";
+import { prepareOrderCalculationItems } from "../../../lib/order-prep";
 import { TRPCError } from "@trpc/server";
 
 const orderItemSchema = z.object({
@@ -155,47 +156,13 @@ export const orderRouter = createTRPCRouter({
             })
         )
         .mutation(async ({ ctx, input }) => {
-            const materials = await ctx.prisma.material.findMany({
-                where: {
-                    id: { in: input.items.map(i => i.materialId).filter((id): id is string => !!id) },
-                }
-            });
+            if (!ctx.session.orgId) throw new TRPCError({ code: "UNAUTHORIZED" });
 
-            const serviceTypes = await ctx.prisma.serviceType.findMany({
-                where: {
-                    id: { in: input.items.map(i => i.serviceTypeId) }
-                }
-            });
-
-            // Find Varnish Material for cost calculation
-            const varnishMaterial = await ctx.prisma.material.findFirst({
-                where: {
-                    organizationId: ctx.session.orgId,
-                    name: { contains: "Verniz", mode: "insensitive" },
-                    category: "LIQUID"
-                }
-            });
-
-            const calcItems = input.items.map(item => {
-                const material = materials.find(m => m.id === item.materialId);
-                const serviceType = serviceTypes.find(st => st.id === item.serviceTypeId);
-
-                return {
-                    width: item.width,
-                    height: item.height,
-                    mlUsed: item.mlUsed,
-                    quantity: item.quantity,
-                    billingType: serviceType?.billingType || 'FIXED', // Fallback
-                    unitPrice: item.unitPrice,
-                    wastePercentage: item.wastePercentage || Number(serviceType?.wastePercentage || 0),
-                    operationalCostPerM2: Number(serviceType?.operationalCostPerM2 || 0),
-                    materialStop: material ? {
-                        costPerSqMeter: Number(material.costPerSqMeter),
-                        costPerMl: Number(material.costPerMl)
-                    } : undefined,
-                    finishings: item.finishings,
-                };
-            });
+            const calcItems = await prepareOrderCalculationItems(
+                ctx.prisma as any,
+                ctx.session.orgId,
+                input.items
+            );
 
             return calculateOrder({
                 items: calcItems,
@@ -224,56 +191,11 @@ export const orderRouter = createTRPCRouter({
             }
 
             // 1. Prepare data for calculation
-            const materials = await ctx.prisma.material.findMany({
-                where: {
-                    id: { in: input.items.map(i => i.materialId).filter((id): id is string => !!id) },
-                    organizationId: ctx.session.orgId, // Ensure materials belong to org
-                }
-            });
-
-            const serviceTypes = await ctx.prisma.serviceType.findMany({
-                where: {
-                    id: { in: input.items.map(i => i.serviceTypeId) },
-                    organizationId: ctx.session.orgId,
-                }
-            });
-
-            // Find Varnish Material for cost calculation
-            const varnishMaterial = await ctx.prisma.material.findFirst({
-                where: {
-                    organizationId: ctx.session.orgId,
-                    name: { contains: "Verniz", mode: "insensitive" },
-                    category: "LIQUID"
-                }
-            });
-
-            const calcItems = input.items.map(item => {
-                const material = materials.find(m => m.id === item.materialId);
-                const serviceType = serviceTypes.find(st => st.id === item.serviceTypeId);
-
-                if (!serviceType) {
-                    throw new TRPCError({
-                        code: "BAD_REQUEST",
-                        message: `Service Type ${item.serviceTypeId} not found or missing access`
-                    });
-                }
-
-                return {
-                    width: item.width,
-                    height: item.height,
-                    mlUsed: item.mlUsed,
-                    quantity: item.quantity,
-                    billingType: serviceType.billingType,
-                    unitPrice: item.unitPrice,
-                    wastePercentage: item.wastePercentage || Number(serviceType.wastePercentage || 0),
-                    operationalCostPerM2: Number(serviceType.operationalCostPerM2 || 0),
-                    materialStop: material ? {
-                        costPerSqMeter: Number(material.costPerSqMeter),
-                        costPerMl: Number(material.costPerMl)
-                    } : undefined,
-                    finishings: item.finishings,
-                };
-            });
+            const calcItems = await prepareOrderCalculationItems(
+                ctx.prisma as any,
+                ctx.session.orgId,
+                input.items
+            );
 
             // 2. Calculate Financials
             const result = calculateOrder({
@@ -400,56 +322,11 @@ export const orderRouter = createTRPCRouter({
             }
 
             // 2. Prepare data for calculation
-            const materials = await ctx.prisma.material.findMany({
-                where: {
-                    id: { in: input.items.map(i => i.materialId).filter((id): id is string => !!id) },
-                    organizationId: ctx.session.orgId,
-                }
-            });
-
-            const serviceTypes = await ctx.prisma.serviceType.findMany({
-                where: {
-                    id: { in: input.items.map(i => i.serviceTypeId) },
-                    organizationId: ctx.session.orgId,
-                }
-            });
-
-            // Find Varnish Material for cost calculation
-            const varnishMaterial = await ctx.prisma.material.findFirst({
-                where: {
-                    organizationId: ctx.session.orgId,
-                    name: { contains: "Verniz", mode: "insensitive" },
-                    category: "LIQUID"
-                }
-            });
-
-            const calcItems = input.items.map(item => {
-                const material = materials.find(m => m.id === item.materialId);
-                const serviceType = serviceTypes.find(st => st.id === item.serviceTypeId);
-
-                if (!serviceType) {
-                    throw new TRPCError({
-                        code: "BAD_REQUEST",
-                        message: `Service Type ${item.serviceTypeId} not found or missing access`
-                    });
-                }
-
-                return {
-                    width: item.width,
-                    height: item.height,
-                    mlUsed: item.mlUsed,
-                    quantity: item.quantity,
-                    billingType: serviceType.billingType,
-                    unitPrice: item.unitPrice,
-                    wastePercentage: item.wastePercentage || Number(serviceType.wastePercentage || 0),
-                    operationalCostPerM2: Number(serviceType.operationalCostPerM2 || 0),
-                    materialStop: material ? {
-                        costPerSqMeter: Number(material.costPerSqMeter),
-                        costPerMl: Number(material.costPerMl)
-                    } : undefined,
-                    finishings: item.finishings,
-                };
-            });
+            const calcItems = await prepareOrderCalculationItems(
+                ctx.prisma as any,
+                ctx.session.orgId,
+                input.items
+            );
 
             // 3. Calculate Financials
             const result = calculateOrder({

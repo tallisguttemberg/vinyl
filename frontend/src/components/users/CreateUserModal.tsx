@@ -16,6 +16,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { User, Mail, Phone, Lock, FileText, CheckCircle2, XCircle, ShieldCheck } from "lucide-react";
 import { PermissionsPanel, ModulePermission } from "./PermissionsPanel";
+import { toast } from "sonner";
 
 const userSchema = z.object({
     nomeCompleto: z.string().min(3, "Nome deve ter no mínimo 3 caracteres"),
@@ -84,8 +85,14 @@ export function CreateUserModal({ onSuccess }: CreateUserModalProps) {
     });
 
     const createUser = api.user.create.useMutation({
-        onSuccess: () => { utils.user.getAll.invalidate(); form.reset(); setPermissions(DEFAULT_PERMS.OPERADOR); onSuccess(); },
-        onError: (err) => { alert(err.message); }
+        onSuccess: () => { 
+            toast.success("Usuário criado com sucesso!");
+            utils.user.getAll.invalidate(); 
+            form.reset(); 
+            setPermissions(DEFAULT_PERMS.OPERADOR); 
+            onSuccess(); 
+        },
+        onError: (err) => { toast.error("Erro ao criar usuário", { description: err.message }); }
     });
 
     const onSubmit = (data: UserFormValues) => {

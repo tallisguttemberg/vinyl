@@ -54,12 +54,16 @@ model Material {
 }
 
 model MaterialEntry {
-  id         String   @id @default(cuid())
-  materialId String
-  quantity   Float
-  createdAt  DateTime @default(now())
-  note       String?
-  material   Material @relation(fields: [materialId], references: [id])
+  id             String   @id @default(cuid())
+  organizationId String
+  materialId     String
+  quantity       Float
+  createdAt      DateTime @default(now())
+  note           String?
+  material       Material @relation(fields: [materialId], references: [id])
+
+  @@index([organizationId])
+  @@index([materialId])
 }
 
 enum BillingType {
@@ -93,6 +97,11 @@ enum OrderStatus {
   CANCELLED
 }
 
+enum DiscountType {
+  PERCENTAGE
+  FIXED
+}
+
 model Order {
   id              String      @id @default(cuid())
   organizationId  String
@@ -111,7 +120,7 @@ model Order {
   
   commissionRate  Decimal     @default(0) @db.Decimal(5, 2) // %
   
-  discountType    String      @default("PERCENTAGE") // "PERCENTAGE" | "FIXED"
+  discountType    DiscountType @default(PERCENTAGE)
   discountValue   Decimal     @default(0) @db.Decimal(10, 2)
 
   vendedorId      String?
@@ -129,6 +138,7 @@ model Order {
   updatedAt       DateTime    @updatedAt
 
   items           OrderItem[]
+  transactions    FinancialTransaction[]
 
   @@index([organizationId])
 }
@@ -222,6 +232,7 @@ model User {
   fotoPerfil     String?
   ultimoLogin    DateTime?
   observacoes    String?
+  deletedAt      DateTime?  // Soft delete — nunca remover fisicamente se há dados vinculados
   
   criadoPorId    String?
   criadoPor      User?      @relation("UserCreator", fields: [criadoPorId], references: [id])
@@ -242,13 +253,18 @@ model User {
 
 model AuditLog {
   id                   String   @id @default(uuid())
+  organizationId       String?  // Nullable for system-wide logs if needed, but usually filled
   idUsuarioCriado      String?
   usuarioCriado        User?    @relation("UserActionCreated", fields: [idUsuarioCriado], references: [id])
   idUsuarioResponsavel String?
   usuarioResponsavel   User?    @relation("UserActionResponsible", fields: [idUsuarioResponsavel], references: [id])
   acao                 String
+  targetId             String?
   ip                   String?
   createdAt            DateTime @default(now())
+
+  @@index([organizationId])
+  @@index([idUsuarioResponsavel])
 }
 
 model UserPermission {
@@ -279,4 +295,41 @@ model OrderLog {
 
   @@index([orderId])
   @@index([userId])
+}
+
+enum TransactionType {
+  PAYABLE
+  RECEIVABLE
+}
+
+enum TransactionStatus {
+  PENDING
+  PAID
+  OVERDUE
+  CANCELLED
+}
+
+model FinancialTransaction {
+  id              String             @id @default(cuid())
+  organizationId  String
+  type            TransactionType
+  status          TransactionStatus  @default(PENDING)
+  description     String
+  amount          Decimal            @db.Decimal(10, 2) // Always absolute value
+  dueDate         DateTime           @db.Date
+  paymentDate     DateTime?          @db.Date
+  paymentMethod   String?            // "PIX", "BOLETO", "CREDIT_CARD", "CASH", "TRANSFER"
+  category        String?            // e.g "Materiais", "Conta de Luz", "Salários", "Venda de Serviços"
+  
+  // Optional relations
+  orderId         String?            
+  order           Order?             @relation(fields: [orderId], references: [id])
+  
+  entityName      String?            // Customer, Supplier, or Employee name
+
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  @@index([organizationId])
+  @@index([orderId])
 }

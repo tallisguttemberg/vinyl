@@ -23,7 +23,7 @@ export interface CalculationInput {
     }[];
     commissionRate: number; // percentage, e.g., 10 for 10%
     commissionBase?: 'GROSS_REVENUE' | 'GROSS_PROFIT'; // Default usually GROSS_REVENUE
-    discountType?: string; // "PERCENTAGE" | "FIXED"
+    discountType?: 'PERCENTAGE' | 'FIXED';
     discountValue?: number;
 }
 

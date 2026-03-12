@@ -1,7 +1,8 @@
 import { z } from "zod";
 import * as bcrypt from "bcrypt";
+import jwt from "jsonwebtoken";
 import { TRPCError } from "@trpc/server";
-import { createTRPCRouter, publicProcedure, checkPermission, protectedProcedure } from "../trpc";
+import { createTRPCRouter, publicProcedure, checkPermission, protectedProcedure, JWT_SECRET } from "../trpc";
 
 // Módulos do sistema disponíveis para controle de permissões
 export const SYSTEM_MODULES = [
@@ -11,6 +12,7 @@ export const SYSTEM_MODULES = [
     "services",
     "settings",
     "users",
+    "financial",
 ] as const;
 
 const permissionSchema = z.object({
@@ -25,7 +27,9 @@ export const userRouter = createTRPCRouter({
     // ─── Listar todos os usuários ─────────────────────────────────────────────
     getAll: checkPermission("users", "visualizar").query(async ({ ctx }) => {
         // Admin do sistema não tem orgId fixo — retorna todos
-        const where = ctx.session.orgId ? { organizationId: ctx.session.orgId } : {};
+        const where = ctx.session.orgId
+            ? { organizationId: ctx.session.orgId, deletedAt: null }
+            : { deletedAt: null };
         return ctx.prisma.user.findMany({
             where,
             orderBy: { createdAt: "desc" },
@@ -168,8 +172,10 @@ export const userRouter = createTRPCRouter({
                 // Log de auditoria
                 await tx.auditLog.create({
                     data: {
+                        organizationId: ctx.session.orgId!,
                         acao: "CREATE_USER",
                         idUsuarioCriado: user.id,
+                        idUsuarioResponsavel: ctx.session.userId,
                     }
                 });
 
@@ -269,7 +275,12 @@ export const userRouter = createTRPCRouter({
                 }
 
                 await tx.auditLog.create({
-                    data: { acao: "UPDATE_USER", idUsuarioCriado: id }
+                    data: { 
+                        organizationId: ctx.session.orgId!,
+                        acao: "UPDATE_USER", 
+                        idUsuarioCriado: id,
+                        idUsuarioResponsavel: ctx.session.userId,
+                    }
                 });
             });
 
@@ -280,7 +291,22 @@ export const userRouter = createTRPCRouter({
     delete: checkPermission("users", "excluir")
         .input(z.object({ id: z.string() }))
         .mutation(async ({ ctx, input }) => {
-            await ctx.prisma.user.delete({ where: { id: input.id } });
+            // Verificar se o usuário tem ordens vinculadas como vendedor
+            const ordersCount = await ctx.prisma.order.count({
+                where: { vendedorId: input.id, deletedAt: null },
+            });
+            if (ordersCount > 0) {
+                throw new TRPCError({
+                    code: "CONFLICT",
+                    message: `Este usuário possui ${ordersCount} ordem(ns) vinculada(s). Inative-o em vez de excluir.`,
+                });
+            }
+
+            // Soft delete — nunca exclusão física
+            await ctx.prisma.user.update({
+                where: { id: input.id },
+                data: { deletedAt: new Date(), status: "INATIVO" },
+            });
             return { success: true };
         }),
 
@@ -304,8 +330,9 @@ export const userRouter = createTRPCRouter({
                 throw new Error("Usuário ou senha inválidos");
             }
 
-            if (user.status !== "ATIVO") {
-                throw new Error("Sua conta está " + user.status.toLowerCase());
+            if (user.status !== "ATIVO" || user.deletedAt) {
+                const reason = user.deletedAt ? "desativada" : user.status.toLowerCase();
+                throw new Error("Sua conta está " + reason);
             }
 
             // Atualizar o último login
@@ -314,8 +341,19 @@ export const userRouter = createTRPCRouter({
                 data: { ultimoLogin: new Date() },
             });
 
+            // Gerar JWT assinado com expiração de 8 horas
+            const token = jwt.sign(
+                {
+                    userId: user.id,
+                    orgId: user.organizationId,
+                    perfil: user.perfil,
+                },
+                JWT_SECRET,
+                { expiresIn: "8h" }
+            );
+
             return {
-                token: user.id, // Usando o ID do usuário como token (simples como o sistema atual)
+                token,
                 user: {
                     id: user.id,
                     usuario: user.usuario,

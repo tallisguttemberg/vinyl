@@ -21,6 +21,7 @@ import { Building2, Pencil } from "lucide-react";
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
 import Image from "next/image";
 import { usePermission } from "@/hooks/usePermission";
+import { toast } from "sonner";
 
 const formSchema = z.object({
     businessName: z.string().optional(),
@@ -40,12 +41,12 @@ export default function SettingsPage() {
 
     const updateSettings = api.organizationSettings.updateSettings.useMutation({
         onSuccess: () => {
-            alert("Configurações salvas com sucesso!");
+            toast.success("Configurações salvas com sucesso!");
             utils.organizationSettings.getSettings.invalidate();
         },
         onError: (error) => {
             console.error("Erro ao salvar:", error);
-            alert(`Erro ao salvar: ${error.message}`);
+            toast.error("Erro ao salvar", { description: error.message });
         },
     });
 

@@ -17,6 +17,7 @@ import { Plus, Pencil, Trash2, Users, ShieldCheck } from "lucide-react";
 import { CreateUserModal } from "@/components/users/CreateUserModal";
 import { EditUserModal } from "@/components/users/EditUserModal";
 import { usePermission } from "@/hooks/usePermission";
+import { toast } from "sonner";
 
 const perfilBadge: Record<string, string> = {
     ADMIN: "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-300",
@@ -44,8 +45,12 @@ export default function UsersPage() {
     const utils = api.useUtils();
 
     const deleteUser = api.user.delete.useMutation({
-        onSuccess: () => { utils.user.getAll.invalidate(); setDeleteUserId(null); },
-        onError: (err) => { alert(err.message); },
+        onSuccess: () => { 
+            toast.success("Usuário excluído com sucesso!");
+            utils.user.getAll.invalidate(); 
+            setDeleteUserId(null); 
+        },
+        onError: (err) => { toast.error("Erro ao excluir usuário", { description: err.message }); },
     });
 
     const deleteTarget = users?.find((u) => u.id === deleteUserId);
@@ -96,7 +101,7 @@ export default function UsersPage() {
             </div>
 
             {/* Tabela */}
-            <div className="rounded-xl border shadow-sm overflow-hidden">
+            <div className="rounded-xl border shadow-sm overflow-x-auto">
                 <Table>
                     <TableHeader>
                         <TableRow className="bg-muted/50">

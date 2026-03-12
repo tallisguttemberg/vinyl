@@ -6,7 +6,8 @@ export type ModuleKey =
     | "materials"
     | "services"
     | "settings"
-    | "users";
+    | "users"
+    | "financial";
 
 export type PermissionAction = "visualizar" | "criar" | "editar" | "excluir";
 

@@ -15,12 +15,15 @@ import {
     Users,
     ChevronLeft,
     ChevronRight,
-    FileText
+    FileText,
+    Wallet
 } from "lucide-react";
 
 interface SidebarProps {
     isCollapsed: boolean;
     onToggle: () => void;
+    onItemClick?: () => void;
+    hideToggle?: boolean;
 }
 
 const routes = [
@@ -67,6 +70,13 @@ const routes = [
         module: "users",
     },
     {
+        label: "Financeiro",
+        icon: Wallet,
+        href: "/financial",
+        color: "text-green-400",
+        module: "financial",
+    },
+    {
         label: "Logs de Status",
         icon: FileText,
         href: "/reports/logs",
@@ -75,7 +85,7 @@ const routes = [
     },
 ];
 
-export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
+export function Sidebar({ isCollapsed, onToggle, onItemClick, hideToggle }: SidebarProps) {
     const pathname = usePathname();
     const { data: settings } = api.organizationSettings.getSettings.useQuery();
     const { data: user } = api.user.getMe.useQuery();
@@ -97,20 +107,22 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
             "space-y-4 py-4 flex flex-col h-full bg-sidebar text-sidebar-foreground transition-all duration-300 relative",
             isCollapsed ? "w-20" : "w-72"
         )}>
-            {/* Botão de Toggle - Design Premium */}
-            <button
-                onClick={onToggle}
-                className={cn(
-                    "absolute -right-3 top-20 bg-indigo-600 rounded-full h-6 w-6 flex items-center justify-center border border-indigo-400/30 hover:bg-indigo-500 transition-all duration-300 shadow-[0_0_10px_rgba(79,70,229,0.4)] z-[100] group",
-                    isCollapsed && "rotate-0"
-                )}
-            >
-                {isCollapsed ? (
-                    <ChevronRight className="h-4 w-4 text-white group-hover:scale-110 transition-transform" />
-                ) : (
-                    <ChevronLeft className="h-4 w-4 text-white group-hover:scale-110 transition-transform" />
-                )}
-            </button>
+            {/* Botão de Toggle - Design Premium - Oculto se hideToggle for true */}
+            {!hideToggle && (
+                <button
+                    onClick={onToggle}
+                    className={cn(
+                        "absolute -right-3 top-20 bg-indigo-600 rounded-full h-6 w-6 flex items-center justify-center border border-indigo-400/30 hover:bg-indigo-500 transition-all duration-300 shadow-[0_0_10px_rgba(79,70,229,0.4)] z-[100] group",
+                        isCollapsed && "rotate-0"
+                    )}
+                >
+                    {isCollapsed ? (
+                        <ChevronRight className="h-4 w-4 text-white group-hover:scale-110 transition-transform" />
+                    ) : (
+                        <ChevronLeft className="h-4 w-4 text-white group-hover:scale-110 transition-transform" />
+                    )}
+                </button>
+            )}
 
             <div className="px-3 py-2 flex-1 overflow-x-hidden">
                 <Link href="/" className={cn(
@@ -162,6 +174,7 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
                         <Link
                             key={route.href}
                             href={route.href}
+                            onClick={onItemClick}
                             title={isCollapsed ? route.label : ""}
                             className={cn(
                                 "text-sm group flex p-3 w-full justify-start font-medium cursor-pointer hover:text-sidebar-foreground hover:bg-sidebar-accent rounded-lg transition",

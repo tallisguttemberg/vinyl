@@ -21,6 +21,7 @@ import { ArrowLeft, Printer, Edit, Trash2, CheckCircle2, Clock, XCircle } from "
 import Link from "next/link";
 import { format } from "date-fns";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 
 export default function OrderDetailsClient({ id }: { id: string }) {
     const { data: order, isLoading } = api.order.getById.useQuery({ id });
@@ -37,12 +38,17 @@ export default function OrderDetailsClient({ id }: { id: string }) {
 
     const deleteOrder = api.order.delete.useMutation({
         onSuccess: () => {
+            toast.success("Ordem excluída com sucesso");
             router.push("/orders");
         },
+        onError: (err) => {
+            toast.error("Erro ao excluir ordem", { description: err.message });
+        }
     });
 
     const updateStatus = api.order.updateStatus.useMutation({
         onSuccess: () => {
+            toast.success("Status atualizado!");
             utils.order.getById.invalidate({ id });
             setIsPasswordModalOpen(false);
             setAdminPassword("");
@@ -50,9 +56,14 @@ export default function OrderDetailsClient({ id }: { id: string }) {
             setPasswordError("");
         },
         onError: (error) => {
-            setPasswordError(error.message);
+            if (isPasswordModalOpen) {
+                setPasswordError(error.message);
+            } else {
+                toast.error("Erro ao atualizar status", { description: error.message });
+            }
         }
     });
+
 
     const handleStatusUpdate = (status: "PENDING" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED") => {
         if (!order) return;

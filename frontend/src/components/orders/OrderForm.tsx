@@ -28,6 +28,20 @@ import { useRouter } from "next/navigation";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
+import { toast } from "sonner";
+
+// ─── Constants ───────────────────────────────────────────────────────────────
+
+const FINISHING_OPTIONS = [
+    "Ilhós",
+    "Bainha",
+    "Corte Reto",
+    "Corte Especial",
+    "Laminação",
+    "Verniz de Proteção",
+    "Refile",
+    "Outro",
+] as const;
 
 // ─── Schemas ────────────────────────────────────────────────────────────────
 
@@ -100,13 +114,19 @@ export function OrderForm({ initialValues, orderId, isEditing = false }: OrderFo
     const { data: users } = api.user.getAll.useQuery();
 
     const createOrder = api.order.create.useMutation({
-        onSuccess: () => { router.push("/orders"); },
-        onError: (error: any) => { alert("Erro ao criar ordem: " + error.message); },
+        onSuccess: () => { 
+            toast.success("Ordem de serviço criada!");
+            router.push("/orders"); 
+        },
+        onError: (error: any) => { toast.error("Erro ao criar ordem", { description: error.message }); },
     });
 
     const updateOrder = api.order.update.useMutation({
-        onSuccess: () => { router.push(`/orders/${orderId}`); },
-        onError: (error: any) => { alert("Erro ao atualizar ordem: " + error.message); },
+        onSuccess: () => { 
+            toast.success("Ordem de serviço atualizada!");
+            router.push(`/orders/${orderId}`); 
+        },
+        onError: (error: any) => { toast.error("Erro ao atualizar ordem", { description: error.message }); },
     });
 
     const calculateOrder = api.order.calculate.useMutation({
@@ -714,9 +734,18 @@ function ItemCard({ index, form, materials, serviceTypes, onRemove }: ItemCardPr
                                         render={({ field }) => (
                                             <FormItem className="flex-1">
                                                 <FormLabel className="text-[10px] uppercase text-muted-foreground sr-only">Nome</FormLabel>
-                                                <FormControl>
-                                                    <Input placeholder="Ex: Ilhós" className="h-8 text-sm" {...field} />
-                                                </FormControl>
+                                                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                                    <FormControl>
+                                                        <SelectTrigger className="h-8 text-sm">
+                                                            <SelectValue placeholder="Acabamento..." />
+                                                        </SelectTrigger>
+                                                    </FormControl>
+                                                    <SelectContent>
+                                                        {FINISHING_OPTIONS.map(opt => (
+                                                            <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+                                                        ))}
+                                                    </SelectContent>
+                                                </Select>
                                             </FormItem>
                                         )}
                                       />

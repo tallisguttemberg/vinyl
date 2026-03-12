@@ -16,6 +16,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { User, Mail, Phone, Lock, FileText, ShieldCheck } from "lucide-react";
 import { PermissionsPanel, ModulePermission } from "./PermissionsPanel";
+import { toast } from "sonner";
 
 const editUserSchema = z.object({
     nomeCompleto: z.string().min(3, "Mínimo 3 caracteres"),
@@ -72,9 +73,10 @@ export function EditUserModal({ userId, onSuccess }: EditUserModalProps) {
     const updateUser = api.user.update.useMutation({
         onSuccess: () => {
             utils.user.getAll.invalidate();
+            toast.success("Usuário atualizado!");
             onSuccess();
         },
-        onError: (err) => { alert(err.message); },
+        onError: (err) => { toast.error("Erro ao atualizar usuário", { description: err.message }); },
     });
 
     const onSubmit = (data: EditUserFormValues) => {

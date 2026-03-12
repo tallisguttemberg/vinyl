@@ -23,6 +23,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { MaterialForm, MaterialFormValues } from "@/components/materials/MaterialForm";
 import { usePermission } from "@/hooks/usePermission";
+import { toast } from "sonner";
 
 export default function MaterialsPage() {
     const { hasPermission, isLoading: loadingPerms } = usePermission();
@@ -51,38 +52,42 @@ export default function MaterialsPage() {
     const entryMutation = api.material.registerEntry.useMutation({
         onSuccess: () => {
             utils.material.getAll.invalidate();
+            toast.success("Estoque atualizado!");
             setEntryOpen(false);
             setQuantityToAdd(0);
             setEntryNote("");
         },
         onError: (error: any) => {
             console.error("Erro ao registrar entrada:", error);
-            alert("Erro ao registrar entrada: " + error.message);
+            toast.error("Erro ao registrar entrada", { description: error.message });
         }
     });
 
     const createMaterial = api.material.create.useMutation({
         onSuccess: () => {
             utils.material.getAll.invalidate();
+            toast.success("Material criado!");
             setCreateOpen(false);
         },
         onError: (error: any) => {
             console.error("Erro ao criar material:", error);
-            alert("Erro ao criar material: " + error.message);
+            toast.error("Erro ao criar material", { description: error.message });
         }
     });
 
     const updateMaterial = api.material.update.useMutation({
         onSuccess: () => {
             utils.material.getAll.invalidate();
+            toast.success("Material atualizado!");
             setEditOpen(false);
             setEditingMaterial(null);
         },
         onError: (error: any) => {
             console.error("Erro ao atualizar material:", error);
-            alert("Erro ao atualizar material: " + error.message);
+            toast.error("Erro ao atualizar material", { description: error.message });
         }
     });
+
 
     const deleteMaterial = api.material.delete.useMutation({
         onSuccess: () => {
@@ -130,7 +135,7 @@ export default function MaterialsPage() {
                 )}
             </div>
 
-            <div className="rounded-md border">
+            <div className="rounded-md border overflow-x-auto">
                 <Table>
                     <TableHeader>
                         <TableRow>

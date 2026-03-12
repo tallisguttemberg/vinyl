@@ -12,6 +12,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
+import { DashboardSkeleton } from "@/components/dashboard/DashboardSkeleton";
 
 const COLUMNS = [
     { id: "PENDING", title: "Pendente", icon: Clock, color: "text-yellow-500" },
@@ -47,6 +49,7 @@ export default function DashboardPage() {
             utils.order.getDashboardStats.invalidate();
             utils.material.getAll.invalidate(); // Invalidate materials because stock might change
             
+            toast.success("Status atualizado com sucesso");
             setIsPasswordModalOpen(false);
             setAdminPassword("");
             setAdminReason("");
@@ -57,7 +60,7 @@ export default function DashboardPage() {
             if (isPasswordModalOpen) {
                 setPasswordError(err.message);
             } else {
-                alert("Erro ao atualizar status: " + err.message);
+                toast.error("Erro ao atualizar status", { description: err.message });
             }
         }
     });
@@ -111,7 +114,7 @@ export default function DashboardPage() {
     }
 
     if (statsLoading || ordersLoading || loadingPerms) {
-        return <div className="p-8">Carregando dashboard...</div>;
+        return <DashboardSkeleton />;
     }
 
     const ordersByStatus = (status: string) =>

@@ -25,7 +25,7 @@ export default function DashboardLayout({
                 isCollapsed ? "md:pl-20" : "md:pl-72"
             )}>
                 <Navbar />
-                <div className="p-8">
+                <div className="p-4 md:p-8">
                     {children}
                 </div>
             </main>

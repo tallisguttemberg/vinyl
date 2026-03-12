@@ -21,6 +21,7 @@ import {
 import { Plus, Trash2, Edit } from "lucide-react";
 import { ServiceTypeForm, ServiceTypeFormValues } from "@/components/services/ServiceTypeForm";
 import { usePermission } from "@/hooks/usePermission";
+import { toast } from "sonner";
 
 export default function ServicesPage() {
     const { hasPermission, isLoading: loadingPerms } = usePermission();
@@ -45,25 +46,28 @@ export default function ServicesPage() {
     const createService = api.serviceType.create.useMutation({
         onSuccess: () => {
             utils.serviceType.getAll.invalidate();
+            toast.success("Serviço criado com sucesso!");
             setCreateOpen(false);
         },
         onError: (error: any) => {
             console.error("Erro ao criar serviço:", error);
-            alert("Erro ao criar serviço: " + error.message);
+            toast.error("Erro ao criar serviço", { description: error.message });
         }
     });
 
     const updateService = api.serviceType.update.useMutation({
         onSuccess: () => {
             utils.serviceType.getAll.invalidate();
+            toast.success("Serviço atualizado!");
             setEditOpen(false);
             setEditingService(null);
         },
         onError: (error: any) => {
             console.error("Erro ao atualizar serviço:", error);
-            alert("Erro ao atualizar serviço: " + error.message);
+            toast.error("Erro ao atualizar serviço", { description: error.message });
         }
     });
+
 
     const deleteService = api.serviceType.delete.useMutation({
         onSuccess: () => {
@@ -111,7 +115,7 @@ export default function ServicesPage() {
                 )}
             </div>
 
-            <div className="rounded-md border">
+            <div className="rounded-md border overflow-x-auto">
                 <Table>
                     <TableHeader>
                         <TableRow>
