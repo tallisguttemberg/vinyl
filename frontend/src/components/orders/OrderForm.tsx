@@ -23,12 +23,19 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Plus, Trash2, Calculator, Save } from "lucide-react";
+import { Plus, Trash2, Calculator, Save, Info } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -64,12 +71,24 @@ const itemSchema = z.object({
     finishings: z.array(finishingSchema).default([]),
 });
 
+const orderSupplySchema = z.object({
+    supplyId: z.string().min(1, "Insumo obrigatório"),
+    quantity: z.coerce.number().min(1).default(1),
+});
+
+const orderEquipmentSchema = z.object({
+    equipmentId: z.string().min(1, "Equipamento obrigatório"),
+    days: z.coerce.number().min(1).default(1),
+});
+
 const formSchema = z.object({
     customerName: z.string().min(1, "Nome do cliente é obrigatório"),
-    vendedorId: z.string().optional().nullable(),
-    commissionRate: z.coerce.number().min(0).max(100),
+    aplicadorId: z.string().optional().nullable(),
+    serviceCommissionRate: z.coerce.number().min(0).max(100),
     discountType: z.enum(["PERCENTAGE", "FIXED"]).default("PERCENTAGE"),
     discountValue: z.coerce.number().min(0).default(0),
+    supplies: z.array(orderSupplySchema).default([]),
+    equipment: z.array(orderEquipmentSchema).default([]),
     items: z.array(itemSchema).min(1, "Adicione pelo menos um item"),
 });
 
@@ -91,9 +110,12 @@ type CalculationResult = {
     totalMaterialCost: number;
     totalOperationalCost: number;
     totalFinishingCost: number;
-    totalCommission: number;
+    totalSupplyCost: number;
+    totalEquipmentCost: number;
+    totalServiceCommission: number;
     grossProfit: number;
     margin: number;
+    totalArea: number;
     items: {
         revenue: number;
         materialCost: number;
@@ -112,6 +134,8 @@ export function OrderForm({ initialValues, orderId, isEditing = false }: OrderFo
     const { data: materials } = api.material.getAll.useQuery();
     const { data: serviceTypes } = api.serviceType.getAll.useQuery();
     const { data: users } = api.user.getAll.useQuery();
+    const { data: allSupplies } = api.supply.getAll.useQuery();
+    const { data: allEquipment } = api.equipment.getAll.useQuery();
 
     const createOrder = api.order.create.useMutation({
         onSuccess: () => { 
@@ -137,10 +161,12 @@ export function OrderForm({ initialValues, orderId, isEditing = false }: OrderFo
         resolver: zodResolver(formSchema) as any,
         defaultValues: initialValues ?? {
             customerName: "",
-            vendedorId: "",
-            commissionRate: 0,
+            aplicadorId: "",
+            serviceCommissionRate: 0,
             discountType: "PERCENTAGE",
             discountValue: 0,
+            supplies: [],
+            equipment: [],
             items: [{
                 serviceTypeId: "",
                 materialId: "",
@@ -161,6 +187,16 @@ export function OrderForm({ initialValues, orderId, isEditing = false }: OrderFo
         name: "items",
     });
 
+    const { fields: supplyFields, append: appendSupply, remove: removeSupply } = useFieldArray({
+        control: form.control,
+        name: "supplies",
+    });
+
+    const { fields: equipmentFields, append: appendEquipment, remove: removeEquipment } = useFieldArray({
+        control: form.control,
+        name: "equipment",
+    });
+
     // ── Helpers ──────────────────────────────────────────────────────────────
 
     function convertToUnitPrice(item: OrderFormValues["items"][number]) {
@@ -179,20 +215,22 @@ export function OrderForm({ initialValues, orderId, isEditing = false }: OrderFo
         if (validItems.length === 0) return;
 
         calculateOrder.mutate({
-            items: validItems.map(i => ({
+            items: validItems.map((i: any) => ({
                 ...i,
                 unitPrice: convertToUnitPrice(i),
                 materialId: (i.materialId === "none" || !i.materialId) ? null : i.materialId,
                 wastePercentage: i.wastePercentage,
             })),
-            commissionRate: values.commissionRate,
+            supplies: values.supplies,
+            equipment: values.equipment,
+            serviceCommissionRate: values.serviceCommissionRate,
             discountType: values.discountType,
             discountValue: values.discountValue,
         });
     }
 
     function onSubmit(values: OrderFormValues) {
-        const processedItems = values.items.map(i => ({
+        const processedItems = values.items.map((i: any) => ({
             ...i,
             unitPrice: convertToUnitPrice(i),
             materialId: (i.materialId === "none" || !i.materialId) ? null : i.materialId,
@@ -227,7 +265,17 @@ export function OrderForm({ initialValues, orderId, isEditing = false }: OrderFo
                                     name="customerName"
                                     render={({ field }) => (
                                         <FormItem>
-                                            <FormLabel>Nome do Cliente</FormLabel>
+                                            <FormLabel className="flex items-center gap-1">
+                                                Nome do Cliente
+                                                <Tooltip>
+                                                    <TooltipTrigger asChild>
+                                                        <Info className="h-3 w-3 text-muted-foreground cursor-help" />
+                                                    </TooltipTrigger>
+                                                    <TooltipContent>
+                                                        <p>Nome completo do cliente ou razão social da empresa.</p>
+                                                    </TooltipContent>
+                                                </Tooltip>
+                                            </FormLabel>
                                             <FormControl>
                                                 <Input placeholder="Ex: João da Silva" {...field} />
                                             </FormControl>
@@ -240,19 +288,29 @@ export function OrderForm({ initialValues, orderId, isEditing = false }: OrderFo
                                 <div className="grid grid-cols-2 gap-4">
                                     <FormField
                                         control={form.control}
-                                        name="vendedorId"
+                                        name="aplicadorId"
                                         render={({ field }) => (
                                             <FormItem>
-                                                <FormLabel>Vendedor</FormLabel>
+                                                <FormLabel className="flex items-center gap-1">
+                                                    Aplicador
+                                                    <Tooltip>
+                                                        <TooltipTrigger asChild>
+                                                            <Info className="h-3 w-3 text-muted-foreground cursor-help" />
+                                                        </TooltipTrigger>
+                                                        <TooltipContent>
+                                                            <p>Colaborador responsável pela aplicação do serviço.</p>
+                                                        </TooltipContent>
+                                                    </Tooltip>
+                                                </FormLabel>
                                                 <Select onValueChange={field.onChange} value={field.value || ""}>
                                                     <FormControl>
                                                         <SelectTrigger>
-                                                            <SelectValue placeholder="Selecione o vendedor..." />
+                                                            <SelectValue placeholder="Selecione o aplicador..." />
                                                         </SelectTrigger>
                                                     </FormControl>
                                                     <SelectContent>
                                                         <SelectItem value="none">Nenhum</SelectItem>
-                                                        {users?.map(user => (
+                                                        {users?.map((user: any) => (
                                                             <SelectItem key={user.id} value={user.id}>
                                                                 {user.nomeCompleto} ({user.usuario})
                                                             </SelectItem>
@@ -265,10 +323,20 @@ export function OrderForm({ initialValues, orderId, isEditing = false }: OrderFo
                                     />
                                     <FormField
                                         control={form.control}
-                                        name="commissionRate"
+                                        name="serviceCommissionRate"
                                         render={({ field }) => (
                                             <FormItem>
-                                                <FormLabel>Comissão (%)</FormLabel>
+                                                <FormLabel className="flex items-center gap-1">
+                                                    Comissão de Serviço (%)
+                                                    <Tooltip>
+                                                        <TooltipTrigger asChild>
+                                                            <Info className="h-3 w-3 text-muted-foreground cursor-help" />
+                                                        </TooltipTrigger>
+                                                        <TooltipContent>
+                                                            <p>Percentual de comissão que o aplicador receberá sobre este serviço.</p>
+                                                        </TooltipContent>
+                                                    </Tooltip>
+                                                </FormLabel>
                                                 <FormControl>
                                                     <Input type="number" {...field} />
                                                 </FormControl>
@@ -285,7 +353,17 @@ export function OrderForm({ initialValues, orderId, isEditing = false }: OrderFo
                                         name="discountType"
                                         render={({ field }) => (
                                             <FormItem>
-                                                <FormLabel>Tipo de Desconto</FormLabel>
+                                                <FormLabel className="flex items-center gap-1">
+                                                    Tipo de Desconto
+                                                    <Tooltip>
+                                                        <TooltipTrigger asChild>
+                                                            <Info className="h-3 w-3 text-muted-foreground cursor-help" />
+                                                        </TooltipTrigger>
+                                                        <TooltipContent>
+                                                            <p>Define se o desconto será calculado como porcentagem ou valor fixo.</p>
+                                                        </TooltipContent>
+                                                    </Tooltip>
+                                                </FormLabel>
                                                 <Select onValueChange={field.onChange} value={field.value}>
                                                     <FormControl>
                                                         <SelectTrigger>
@@ -305,7 +383,17 @@ export function OrderForm({ initialValues, orderId, isEditing = false }: OrderFo
                                         name="discountValue"
                                         render={({ field }) => (
                                             <FormItem>
-                                                <FormLabel>Valor do Desconto</FormLabel>
+                                                <FormLabel className="flex items-center gap-1">
+                                                    Valor do Desconto
+                                                    <Tooltip>
+                                                        <TooltipTrigger asChild>
+                                                            <Info className="h-3 w-3 text-muted-foreground cursor-help" />
+                                                        </TooltipTrigger>
+                                                        <TooltipContent>
+                                                            <p>O valor numérico do desconto (em % ou R$).</p>
+                                                        </TooltipContent>
+                                                    </Tooltip>
+                                                </FormLabel>
                                                 <FormControl>
                                                     <Input type="number" step="0.01" {...field} />
                                                 </FormControl>
@@ -317,9 +405,140 @@ export function OrderForm({ initialValues, orderId, isEditing = false }: OrderFo
                             </CardContent>
                         </Card>
 
+                        {/* Insumos & Equipamentos */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <Card>
+                                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                                    <CardTitle className="text-sm font-medium flex items-center gap-1">
+                                        Insumos Extras
+                                        <Tooltip>
+                                            <TooltipTrigger asChild>
+                                                <Info className="h-3 w-3 text-muted-foreground cursor-help" />
+                                            </TooltipTrigger>
+                                            <TooltipContent>
+                                                <p>Quantidade total do insumo a ser usado neste projeto.</p>
+                                            </TooltipContent>
+                                        </Tooltip>
+                                    </CardTitle>
+                                    <Button type="button" variant="ghost" size="sm" onClick={() => appendSupply({ supplyId: "", quantity: 1 })}>
+                                        <Plus className="h-4 w-4" />
+                                    </Button>
+                                </CardHeader>
+                                <CardContent className="space-y-4">
+                                    {supplyFields.map((field: any, index: number) => (
+                                        <div key={field.id} className="flex gap-2">
+                                            <FormField
+                                                control={form.control}
+                                                name={`supplies.${index}.supplyId`}
+                                                render={({ field }) => (
+                                                    <FormItem className="flex-1">
+                                                        <Select onValueChange={field.onChange} value={field.value}>
+                                                            <FormControl>
+                                                                <SelectTrigger>
+                                                                    <SelectValue placeholder="Insumo..." />
+                                                                </SelectTrigger>
+                                                            </FormControl>
+                                                            <SelectContent>
+                                                                {allSupplies?.map((s: any) => (
+                                                                    <SelectItem key={s.id} value={s.id}>
+                                                                        {s.name} (R$ {Number(s.unitCost).toFixed(2)})
+                                                                    </SelectItem>
+                                                                ))}
+                                                            </SelectContent>
+                                                        </Select>
+                                                    </FormItem>
+                                                )}
+                                            />
+                                            <FormField
+                                                control={form.control}
+                                                name={`supplies.${index}.quantity`}
+                                                render={({ field }) => (
+                                                    <FormItem className="w-16">
+                                                        <FormControl>
+                                                            <Input type="number" min={1} {...field} />
+                                                        </FormControl>
+                                                    </FormItem>
+                                                )}
+                                            />
+                                            <Button type="button" variant="ghost" size="icon" onClick={() => removeSupply(index)}>
+                                                <Trash2 className="h-4 w-4 text-red-500" />
+                                            </Button>
+                                        </div>
+                                    ))}
+                                    {supplyFields.length === 0 && (
+                                        <p className="text-xs text-muted-foreground italic">Nenhum insumo extra.</p>
+                                    )}
+                                </CardContent>
+                            </Card>
+
+                            <Card>
+                                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                                    <CardTitle className="text-sm font-medium flex items-center gap-1">
+                                        Equipamentos (Diárias)
+                                        <Tooltip>
+                                            <TooltipTrigger asChild>
+                                                <Info className="h-3 w-3 text-muted-foreground cursor-help" />
+                                            </TooltipTrigger>
+                                            <TooltipContent>
+                                                <p>Máquinas externos cujo custo é calculado por diária.</p>
+                                            </TooltipContent>
+                                        </Tooltip>
+                                    </CardTitle>
+                                    <Button type="button" variant="ghost" size="sm" onClick={() => appendEquipment({ equipmentId: "", days: 1 })}>
+                                        <Plus className="h-4 w-4" />
+                                    </Button>
+                                </CardHeader>
+                                <CardContent className="space-y-4">
+                                    {equipmentFields.map((field: any, index: number) => (
+                                        <div key={field.id} className="flex gap-2 items-end">
+                                            <FormField
+                                                control={form.control}
+                                                name={`equipment.${index}.equipmentId`}
+                                                render={({ field }) => (
+                                                    <FormItem className="flex-1">
+                                                        <Select onValueChange={field.onChange} value={field.value}>
+                                                            <FormControl>
+                                                                <SelectTrigger>
+                                                                    <SelectValue placeholder="Equip..." />
+                                                                </SelectTrigger>
+                                                            </FormControl>
+                                                            <SelectContent>
+                                                                {allEquipment?.map((e: any) => (
+                                                                    <SelectItem key={e.id} value={e.id}>
+                                                                        {e.name} (R$ {Number(e.dailyCost).toFixed(2)})
+                                                                    </SelectItem>
+                                                                ))}
+                                                            </SelectContent>
+                                                        </Select>
+                                                    </FormItem>
+                                                )}
+                                            />
+                                            <FormField
+                                                control={form.control}
+                                                name={`equipment.${index}.days`}
+                                                render={({ field }) => (
+                                                    <FormItem className="w-16">
+                                                        <FormControl>
+                                                            <Input type="number" min={1} {...field} />
+                                                        </FormControl>
+                                                    </FormItem>
+                                                )}
+                                            />
+                                            <Button type="button" variant="ghost" size="icon" onClick={() => removeEquipment(index)}>
+                                                <Trash2 className="h-4 w-4 text-red-500" />
+                                            </Button>
+                                        </div>
+                                    ))}
+                                    {equipmentFields.length === 0 && (
+                                        <p className="text-xs text-muted-foreground italic">Nenhum equipamento.</p>
+                                    )}
+                                </CardContent>
+                            </Card>
+                        </div>
+
                         {/* Items list */}
                         <div className="space-y-4">
-                            {fields.map((field, index) => (
+                            {fields.map((field: any, index: number) => (
                                 <ItemCard
                                     key={field.id}
                                     index={index}
@@ -381,7 +600,17 @@ export function OrderForm({ initialValues, orderId, isEditing = false }: OrderFo
                         ) : (
                             <div className="space-y-3">
                                 <div className="flex justify-between">
-                                    <span className="text-muted-foreground">Faturamento Bruto:</span>
+                                    <span className="text-muted-foreground flex items-center gap-1">
+                                        Faturamento Bruto:
+                                        <Tooltip>
+                                            <TooltipTrigger asChild>
+                                                <Info className="h-3 w-3 text-muted-foreground cursor-help" />
+                                            </TooltipTrigger>
+                                            <TooltipContent>
+                                                <p>Soma total dos itens sem descontos.</p>
+                                            </TooltipContent>
+                                        </Tooltip>
+                                    </span>
                                     <span className="font-bold">R$ {calculationResult.subtotal.toFixed(2)}</span>
                                 </div>
                                 {calculationResult.calculatedDiscount > 0 && (
@@ -391,7 +620,17 @@ export function OrderForm({ initialValues, orderId, isEditing = false }: OrderFo
                                     </div>
                                 )}
                                 <div className="flex justify-between border-t border-dashed pt-2">
-                                    <span className="text-muted-foreground font-semibold">Receita Líquida:</span>
+                                    <span className="text-muted-foreground font-semibold flex items-center gap-1">
+                                        Receita Líquida:
+                                        <Tooltip>
+                                            <TooltipTrigger asChild>
+                                                <Info className="h-3 w-3 text-muted-foreground cursor-help" />
+                                            </TooltipTrigger>
+                                            <TooltipContent>
+                                                <p>Valor total após a aplicação dos descontos.</p>
+                                            </TooltipContent>
+                                        </Tooltip>
+                                    </span>
                                     <span className="font-bold text-primary">R$ {calculationResult.totalRevenue.toFixed(2)}</span>
                                 </div>
                                 <Separator />
@@ -407,24 +646,48 @@ export function OrderForm({ initialValues, orderId, isEditing = false }: OrderFo
                                     <span className="text-muted-foreground">(-) Custos de Extras/Acabamentos:</span>
                                     <span className="text-red-500">- R$ {calculationResult.totalFinishingCost.toFixed(2)}</span>
                                 </div>
+                                <div className="flex justify-between text-sm">
+                                    <span className="text-muted-foreground">(-) Custos de Insumos Extras:</span>
+                                    <span className="text-red-500">- R$ {calculationResult.totalSupplyCost.toFixed(2)}</span>
+                                </div>
+                                <div className="flex justify-between text-sm">
+                                    <span className="text-muted-foreground">(-) Custos de Equipamentos:</span>
+                                    <span className="text-red-500">- R$ {calculationResult.totalEquipmentCost.toFixed(2)}</span>
+                                </div>
                                 <div className="flex justify-between text-sm font-medium pt-1">
-                                    <span className="text-muted-foreground">(=) Custo Total (CMV):</span>
+                                    <span className="text-muted-foreground flex items-center gap-1">
+                                        (=) Custo Total (CMV):
+                                        <Tooltip>
+                                            <TooltipTrigger asChild>
+                                                <Info className="h-3 w-3 text-muted-foreground cursor-help" />
+                                            </TooltipTrigger>
+                                            <TooltipContent>
+                                                <p>Soma de todos os custos diretos da operação.</p>
+                                            </TooltipContent>
+                                        </Tooltip>
+                                    </span>
                                     <span className="text-red-500">- R$ {calculationResult.totalCost.toFixed(2)}</span>
                                 </div>
                                 <Separator />
                                 <div className="flex justify-between text-sm">
-                                    <span className="text-muted-foreground font-medium">Lucro Bruto Operacional:</span>
-                                    <span className="font-bold">R$ {(calculationResult.totalRevenue - calculationResult.totalCost).toFixed(2)}</span>
-                                </div>
-                                <div className="flex justify-between text-sm">
                                     <span className="text-muted-foreground">
-                                        (-) Comissão ({form.getValues("commissionRate")}%):
+                                        (-) Comissão de Serviço ({form.getValues("serviceCommissionRate")}%):
                                     </span>
-                                    <span className="text-red-500">- R$ {calculationResult.totalCommission.toFixed(2)}</span>
+                                    <span className="text-red-500">- R$ {calculationResult.totalServiceCommission.toFixed(2)}</span>
                                 </div>
                                 <Separator />
                                 <div className="flex justify-between text-lg font-bold">
-                                    <span>Lucro Líquido Real:</span>
+                                    <span className="flex items-center gap-1">
+                                        Lucro Líquido Real:
+                                        <Tooltip>
+                                            <TooltipTrigger asChild>
+                                                <Info className="h-3 w-3 text-muted-foreground cursor-help" />
+                                            </TooltipTrigger>
+                                            <TooltipContent>
+                                                <p>O lucro efetivo que sobra após todos os custos e comissões.</p>
+                                            </TooltipContent>
+                                        </Tooltip>
+                                    </span>
                                     <span className="text-green-600">R$ {calculationResult.grossProfit.toFixed(2)}</span>
                                 </div>
                                 <div className="flex justify-between items-center">
@@ -516,13 +779,23 @@ function ItemCard({ index, form, materials, serviceTypes, onRemove }: ItemCardPr
                 </div>
 
                 {/* Service type & Material */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
                     <FormField
                         control={form.control}
                         name={`items.${index}.serviceTypeId`}
                         render={({ field }) => (
                             <FormItem className="md:col-span-5">
-                                <FormLabel>Tipo de Serviço</FormLabel>
+                                <FormLabel className="flex items-center gap-1">
+                                    Tipo de Serviço
+                                    <Tooltip>
+                                        <TooltipTrigger asChild>
+                                            <Info className="h-3 w-3 text-muted-foreground cursor-help" />
+                                        </TooltipTrigger>
+                                        <TooltipContent>
+                                            <p>O serviço principal que define o cálculo base de preço e custo.</p>
+                                        </TooltipContent>
+                                    </Tooltip>
+                                </FormLabel>
                                 <Select
                                     onValueChange={(value) => {
                                         field.onChange(value);
@@ -542,7 +815,7 @@ function ItemCard({ index, form, materials, serviceTypes, onRemove }: ItemCardPr
                                         </SelectTrigger>
                                     </FormControl>
                                     <SelectContent>
-                                        {serviceTypes?.map(st => (
+                                        {serviceTypes?.map((st: any) => (
                                             <SelectItem key={st.id} value={st.id}>
                                                 {st.name} ({st.billingType === "FIXED" ? "Fixo" : "m²"})
                                             </SelectItem>
@@ -559,7 +832,17 @@ function ItemCard({ index, form, materials, serviceTypes, onRemove }: ItemCardPr
                         name={`items.${index}.materialId`}
                         render={({ field }) => (
                             <FormItem className="md:col-span-4">
-                                <FormLabel>Material</FormLabel>
+                                <FormLabel className="flex items-center gap-1">
+                                    Material
+                                    <Tooltip>
+                                        <TooltipTrigger asChild>
+                                            <Info className="h-3 w-3 text-muted-foreground cursor-help" />
+                                        </TooltipTrigger>
+                                        <TooltipContent>
+                                            <p>O material base (vinil, lona, etc) que será consumido.</p>
+                                        </TooltipContent>
+                                    </Tooltip>
+                                </FormLabel>
                                 <Select
                                     onValueChange={(val) => {
                                         field.onChange(val);
@@ -574,7 +857,7 @@ function ItemCard({ index, form, materials, serviceTypes, onRemove }: ItemCardPr
                                     </FormControl>
                                     <SelectContent>
                                         <SelectItem value="none">Sem Material</SelectItem>
-                                        {materials?.map(m => (
+                                        {materials?.map((m: any) => (
                                             <SelectItem key={m.id} value={m.id}>
                                                 {m.name} ({(m as any).category === "LIQUID" ? "Líquido" : "m²"})
                                             </SelectItem>
@@ -602,7 +885,17 @@ function ItemCard({ index, form, materials, serviceTypes, onRemove }: ItemCardPr
                         name={`items.${index}.wastePercentage`}
                         render={({ field }) => (
                             <FormItem className="md:col-span-3">
-                                <FormLabel>Desperdício (%)</FormLabel>
+                                <FormLabel className="flex items-center gap-1">
+                                    Desperdício (%)
+                                    <Tooltip>
+                                        <TooltipTrigger asChild>
+                                            <Info className="h-3 w-3 text-muted-foreground cursor-help" />
+                                        </TooltipTrigger>
+                                        <TooltipContent>
+                                            <p>Margem extra para cobrir sobras e recortes.</p>
+                                        </TooltipContent>
+                                    </Tooltip>
+                                </FormLabel>
                                 <FormControl>
                                     <Input type="number" step="0.1" {...field} />
                                 </FormControl>
@@ -619,7 +912,17 @@ function ItemCard({ index, form, materials, serviceTypes, onRemove }: ItemCardPr
                         name={`items.${index}.width`}
                         render={({ field }) => (
                             <FormItem>
-                                <FormLabel>Compr. (m)</FormLabel>
+                                <FormLabel className="flex items-center gap-1">
+                                    Compr. (m)
+                                    <Tooltip>
+                                        <TooltipTrigger asChild>
+                                            <Info className="h-3 w-3 text-muted-foreground cursor-help" />
+                                        </TooltipTrigger>
+                                        <TooltipContent>
+                                            <p>Largura/Comprimento da peça em metros.</p>
+                                        </TooltipContent>
+                                    </Tooltip>
+                                </FormLabel>
                                 <FormControl>
                                     <Input type="number" step="0.01" {...field} />
                                 </FormControl>
@@ -632,7 +935,17 @@ function ItemCard({ index, form, materials, serviceTypes, onRemove }: ItemCardPr
                         name={`items.${index}.height`}
                         render={({ field }) => (
                             <FormItem>
-                                <FormLabel>Alt. (m)</FormLabel>
+                                <FormLabel className="flex items-center gap-1">
+                                    Alt. (m)
+                                    <Tooltip>
+                                        <TooltipTrigger asChild>
+                                            <Info className="h-3 w-3 text-muted-foreground cursor-help" />
+                                        </TooltipTrigger>
+                                        <TooltipContent>
+                                            <p>Altura da peça em metros.</p>
+                                        </TooltipContent>
+                                    </Tooltip>
+                                </FormLabel>
                                 <FormControl>
                                     <Input type="number" step="0.01" {...field} />
                                 </FormControl>
@@ -645,7 +958,17 @@ function ItemCard({ index, form, materials, serviceTypes, onRemove }: ItemCardPr
                         name={`items.${index}.quantity`}
                         render={({ field }) => (
                             <FormItem>
-                                <FormLabel>Qtd</FormLabel>
+                                <FormLabel className="flex items-center gap-1">
+                                    Qtd
+                                    <Tooltip>
+                                        <TooltipTrigger asChild>
+                                            <Info className="h-3 w-3 text-muted-foreground cursor-help" />
+                                        </TooltipTrigger>
+                                        <TooltipContent>
+                                            <p>Número de unidades idênticas.</p>
+                                        </TooltipContent>
+                                    </Tooltip>
+                                </FormLabel>
                                 <FormControl>
                                     <Input type="number" {...field} />
                                 </FormControl>
@@ -661,7 +984,17 @@ function ItemCard({ index, form, materials, serviceTypes, onRemove }: ItemCardPr
                             name={`items.${index}.mlUsed`}
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>ML Adic.</FormLabel>
+                                    <FormLabel className="flex items-center gap-1">
+                                        ML Adic.
+                                        <Tooltip>
+                                            <TooltipTrigger asChild>
+                                                <Info className="h-3 w-3 text-muted-foreground cursor-help" />
+                                            </TooltipTrigger>
+                                            <TooltipContent>
+                                                <p>Volume extra de líquido consumido por unidade.</p>
+                                            </TooltipContent>
+                                        </Tooltip>
+                                    </FormLabel>
                                     <FormControl>
                                         <Input type="number" step="0.01" {...field} />
                                     </FormControl>
@@ -673,8 +1006,18 @@ function ItemCard({ index, form, materials, serviceTypes, onRemove }: ItemCardPr
                         <div className="hidden md:block" />
                     )}
 
-                    {/* Price input with type toggle */}
                     <div className="col-span-2 flex flex-col space-y-1">
+                        <Label className="text-xs font-semibold flex items-center gap-1 mb-1">
+                            Preço
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <Info className="h-3 w-3 text-muted-foreground cursor-help" />
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                    <p>Defina o valor unitário ou o total deste item.</p>
+                                </TooltipContent>
+                            </Tooltip>
+                        </Label>
                         <FormField
                             control={form.control}
                             name={`items.${index}.priceInputType`}
@@ -712,7 +1055,17 @@ function ItemCard({ index, form, materials, serviceTypes, onRemove }: ItemCardPr
                 {/* Finishings Array */}
                 <div className="pt-4 border-t mt-4">
                     <div className="flex items-center justify-between mb-2">
-                         <h5 className="text-sm font-medium text-muted-foreground">Acabamentos / Extras</h5>
+                         <h5 className="text-sm font-medium text-muted-foreground flex items-center gap-1">
+                             Acabamentos / Extras
+                             <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <Info className="h-3 w-3 text-muted-foreground cursor-help" />
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                    <p>Serviços adicionais como ilhós, bainha ou refile.</p>
+                                </TooltipContent>
+                            </Tooltip>
+                         </h5>
                          <Button
                             type="button"
                             variant="ghost"
@@ -726,7 +1079,7 @@ function ItemCard({ index, form, materials, serviceTypes, onRemove }: ItemCardPr
 
                     {finishingFields.length > 0 ? (
                         <div className="space-y-2">
-                             {finishingFields.map((fld, fIdx) => (
+                             {finishingFields.map((fld: any, fIdx: number) => (
                                  <div key={fld.id} className="flex gap-2 items-start bg-muted/20 p-2 rounded-md">
                                       <FormField
                                         control={form.control}
@@ -741,7 +1094,7 @@ function ItemCard({ index, form, materials, serviceTypes, onRemove }: ItemCardPr
                                                         </SelectTrigger>
                                                     </FormControl>
                                                     <SelectContent>
-                                                        {FINISHING_OPTIONS.map(opt => (
+                                                        {FINISHING_OPTIONS.map((opt: string) => (
                                                             <SelectItem key={opt} value={opt}>{opt}</SelectItem>
                                                         ))}
                                                     </SelectContent>

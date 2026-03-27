@@ -27,9 +27,12 @@ export const userRouter = createTRPCRouter({
     // ─── Listar todos os usuários ─────────────────────────────────────────────
     getAll: checkPermission("users", "visualizar").query(async ({ ctx }) => {
         // Admin do sistema não tem orgId fixo — retorna todos
-        const where = ctx.session.orgId
+        const where: any = ctx.session.orgId
             ? { organizationId: ctx.session.orgId, deletedAt: null }
             : { deletedAt: null };
+
+        // Proteção: Nunca listar o usuário master 'admin' para ninguém
+        where.usuario = { not: "admin" };
         return ctx.prisma.user.findMany({
             where,
             orderBy: { createdAt: "desc" },
@@ -291,14 +294,23 @@ export const userRouter = createTRPCRouter({
     delete: checkPermission("users", "excluir")
         .input(z.object({ id: z.string() }))
         .mutation(async ({ ctx, input }) => {
-            // Verificar se o usuário tem ordens vinculadas como vendedor
+            // Verificar se o usuário tem ordens vinculadas como aplicador
             const ordersCount = await ctx.prisma.order.count({
-                where: { vendedorId: input.id, deletedAt: null },
+                where: { aplicadorId: input.id, deletedAt: null },
             });
             if (ordersCount > 0) {
                 throw new TRPCError({
                     code: "CONFLICT",
                     message: `Este usuário possui ${ordersCount} ordem(ns) vinculada(s). Inative-o em vez de excluir.`,
+                });
+            }
+
+            // Proteção: Nunca permitir excluir o usuário master 'admin'
+            const userToDelete = await ctx.prisma.user.findUnique({ where: { id: input.id } });
+            if (userToDelete?.usuario === "admin") {
+                throw new TRPCError({
+                    code: "FORBIDDEN",
+                    message: "O usuário administrador mestre não pode ser excluído.",
                 });
             }
 
@@ -364,7 +376,77 @@ export const userRouter = createTRPCRouter({
         }),
 
     // ─── Obter dados do usuário logado ────────────────────────────────────────
-    getMe: protectedProcedure.query(({ ctx }) => {
-        return ctx.session;
+    getMe: protectedProcedure.query(async ({ ctx }) => {
+        const user = await ctx.prisma.user.findUnique({
+            where: { id: ctx.session.userId },
+            select: {
+                id: true,
+                nomeCompleto: true,
+                usuario: true,
+                email: true,
+                perfil: true,
+                status: true,
+                telefone: true,
+                fotoPerfil: true,
+                observacoes: true,
+                createdAt: true,
+                permissoes: {
+                    select: {
+                        modulo: true,
+                        visualizar: true,
+                        criar: true,
+                        editar: true,
+                        excluir: true,
+                    }
+                }
+            }
+        });
+
+        if (!user) {
+            throw new TRPCError({
+                code: "NOT_FOUND",
+                message: "Usuário não encontrado."
+            });
+        }
+
+        return user;
     }),
+
+    // ─── Atualizar o próprio perfil ───────────────────────────────────────────
+    updateMe: protectedProcedure
+        .input(z.object({
+            nomeCompleto: z.string().min(3).optional(),
+            email: z.string().email().optional(),
+            telefone: z.string().optional(),
+            fotoPerfil: z.string().optional(),
+            senha: z.string().min(8).regex(/[A-Z]/).regex(/[0-9]/).optional(),
+        }))
+        .mutation(async ({ ctx, input }) => {
+            const { senha, ...rest } = input;
+            const id = ctx.session.userId;
+
+            // Se alterar email, verificar unicidade
+            if (rest.email) {
+                const existingUser = await ctx.prisma.user.findFirst({
+                    where: { email: rest.email, NOT: { id } }
+                });
+                if (existingUser) throw new Error("Este email já está em uso.");
+            }
+
+            let senhaHash: string | undefined;
+            if (senha) {
+                const salt = await bcrypt.genSalt(10);
+                senhaHash = await bcrypt.hash(senha, salt);
+            }
+
+            await ctx.prisma.user.update({
+                where: { id },
+                data: {
+                    ...rest,
+                    ...(senhaHash ? { senhaHash } : {}),
+                },
+            });
+
+            return { success: true };
+        }),
 });

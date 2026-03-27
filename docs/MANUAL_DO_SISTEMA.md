@@ -53,8 +53,8 @@ A tela mais poderosa do sistema, projetada para orçamentos precisos.
   - **Cálculo em Tempo Real**: O sistema calcula a área (m²), o custo do material usado e o preço final sugerido.
 - **Análise Financeira (Preview)**:
   - **Margem de Desperdício**: Adicione uma porcentagem de segurança para perda de material.
-  - **Comissão**: Defina a porcentagem de comissão do vendedor.
-  - **Lucro Real**: Veja exatamente quanto sobrará no bolso após descontar material e comissões.
+  - **Comissão de Serviço**: Defina a porcentagem de comissão do aplicador.
+  - **Lucro Real**: Veja exatamente quanto sobrará no bolso após descontar material e comissões de serviço.
 
 ### Detalhes da Ordem e Impressão (`/orders/[id]`)
 Visualização completa de um pedido fechado.

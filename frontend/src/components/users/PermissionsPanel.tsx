@@ -56,7 +56,7 @@ function updatePermission(
 
 export function PermissionsPanel({ value, onChange }: PermissionsPanelProps) {
     const { data: user } = api.user.getMe.useQuery();
-    const isAdmin = user?.perfil === "ADMIN" || user?.userId === "admin";
+    const isAdmin = user?.perfil === "ADMIN" || user?.id === "admin";
 
     return (
         <div className="space-y-3">

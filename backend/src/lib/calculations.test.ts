@@ -13,7 +13,7 @@ describe('calculateOrder', () => {
                 wastePercentage: 0,
                 finishings: []
             }],
-            commissionRate: 10,
+            serviceCommissionRate: 10,
             discountValue: 0,
         };
 
@@ -21,7 +21,7 @@ describe('calculateOrder', () => {
 
         expect(result.subtotal).toBe(100);
         expect(result.totalRevenue).toBe(100);
-        expect(result.totalCommission).toBe(10);
+        expect(result.totalServiceCommission).toBe(10);
         expect(result.grossProfit).toBe(90);
     });
 
@@ -36,7 +36,7 @@ describe('calculateOrder', () => {
                 wastePercentage: 0,
                 finishings: []
             }],
-            commissionRate: 0,
+            serviceCommissionRate: 0,
         };
 
         const result = calculateOrder(input);
@@ -54,7 +54,7 @@ describe('calculateOrder', () => {
                 billingType: 'FIXED',
                 unitPrice: 100,
             }],
-            commissionRate: 0,
+            serviceCommissionRate: 0,
             discountType: 'FIXED',
             discountValue: 20,
         };
@@ -74,7 +74,7 @@ describe('calculateOrder', () => {
                 billingType: 'FIXED',
                 unitPrice: 200,
             }],
-            commissionRate: 0,
+            serviceCommissionRate: 0,
             discountType: 'PERCENTAGE',
             discountValue: 10,
         };
@@ -98,7 +98,7 @@ describe('calculateOrder', () => {
                 },
                 wastePercentage: 50 // 50% waste
             }],
-            commissionRate: 0,
+            serviceCommissionRate: 0,
         };
 
         const result = calculateOrder(input);
@@ -117,8 +117,8 @@ describe('calculateOrder', () => {
                 unitPrice: 100,
                 materialStop: { costPerSqMeter: 50 }
             }],
-            commissionRate: 10,
-            commissionBase: 'GROSS_PROFIT'
+            serviceCommissionRate: 10,
+            serviceCommissionBase: 'GROSS_PROFIT'
         };
 
         const result = calculateOrder(input);
@@ -127,7 +127,7 @@ describe('calculateOrder', () => {
         // Commission = 10% of 50 = 5.
         expect(result.totalRevenue).toBe(100);
         expect(result.totalCost).toBe(50);
-        expect(result.totalCommission).toBe(5);
+        expect(result.totalServiceCommission).toBe(5);
         expect(result.grossProfit).toBe(45);
     });
 
@@ -143,7 +143,7 @@ describe('calculateOrder', () => {
                     { name: 'Ilhós', price: 10, cost: 2 }
                 ]
             }],
-            commissionRate: 0,
+            serviceCommissionRate: 0,
         };
 
         const result = calculateOrder(input);

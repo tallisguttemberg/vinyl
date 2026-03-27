@@ -1,0 +1,15 @@
+:80 {
+    # Redireciona chamadas da API para o backend (mantendo o prefixo /api)
+    handle /api/* {
+        reverse_proxy backend:4000
+    }
+
+    # Redireciona todo o resto para o frontend
+    handle {
+        reverse_proxy frontend:3000
+    }
+
+    log {
+        output stdout
+    }
+}

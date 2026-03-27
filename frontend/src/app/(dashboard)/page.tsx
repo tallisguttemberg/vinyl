@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { api } from "@/trpc/react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { DollarSign, Package, Users, Clock, CheckCircle2, PlayCircle, XCircle } from "lucide-react";
+import { DollarSign, Package, Users, Clock, CheckCircle2, PlayCircle, XCircle, X } from "lucide-react";
 import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd";
 import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
@@ -36,10 +36,19 @@ export default function DashboardPage() {
     const [adminReason, setAdminReason] = useState("");
     const [passwordError, setPasswordError] = useState("");
 
-    const { data: stats, isLoading: statsLoading } = api.order.getDashboardStats.useQuery(undefined, {
+    // Date filters
+    const [startDate, setStartDate] = useState<string>("");
+    const [endDate, setEndDate] = useState<string>("");
+
+    const dateFilters = {
+        startDate: startDate ? startDate + "T00:00:00-03:00" : undefined,
+        endDate: endDate ? endDate + "T23:59:59-03:00" : undefined,
+    };
+
+    const { data: stats, isLoading: statsLoading } = api.order.getDashboardStats.useQuery(dateFilters, {
         enabled: !loadingPerms && canViewDashboard,
     });
-    const { data: orders, isLoading: ordersLoading } = api.order.getAll.useQuery(undefined, {
+    const { data: orders, isLoading: ordersLoading } = api.order.getAll.useQuery(dateFilters, {
         enabled: !loadingPerms && canViewDashboard,
     });
 
@@ -128,6 +137,40 @@ export default function DashboardPage() {
                     Gerencie suas ordens de serviço e acompanhe o desempenho.
                 </p>
             </div>
+            
+            <div className="flex flex-wrap items-center gap-4 bg-muted/40 p-5 rounded-2xl border border-border/50">
+                <div className="flex flex-col gap-1.5 min-w-[140px]">
+                    <label className="text-xs font-bold text-muted-foreground uppercase tracking-widest pl-1">Data Mínima</label>
+                    <input 
+                        type="date" 
+                        className="flex h-10 w-full rounded-xl border border-border/40 bg-background/80 px-3 py-2 text-sm backdrop-blur file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 disabled:cursor-not-allowed disabled:opacity-50 transition-all dark:bg-background/40"
+                        value={startDate} 
+                        onChange={(e) => setStartDate(e.target.value)} 
+                    />
+                </div>
+                <div className="flex flex-col gap-1.5 min-w-[140px]">
+                    <label className="text-xs font-bold text-muted-foreground uppercase tracking-widest pl-1">Data Máxima</label>
+                    <input 
+                        type="date" 
+                        className="flex h-10 w-full rounded-xl border border-border/40 bg-background/80 px-3 py-2 text-sm backdrop-blur file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 disabled:cursor-not-allowed disabled:opacity-50 transition-all dark:bg-background/40"
+                        value={endDate} 
+                        onChange={(e) => setEndDate(e.target.value)} 
+                    />
+                </div>
+
+                <div className="flex-1" />
+
+                {(startDate || endDate) && (
+                    <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        className="h-10 px-4 rounded-xl text-xs font-bold uppercase hover:bg-background/50 text-red-500 hover:text-red-600 hover:bg-red-500/10 transition-colors"
+                        onClick={() => { setStartDate(""); setEndDate(""); }}
+                    >
+                        <X className="mr-2 h-4 w-4" /> Limpar Filtros
+                    </Button>
+                )}
+            </div>
 
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
                 <Card>
@@ -183,14 +226,14 @@ export default function DashboardPage() {
 
                 <Card>
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Comissões</CardTitle>
+                        <CardTitle className="text-sm font-medium">Comissões de Serviço</CardTitle>
                         <Users className="h-4 w-4 text-muted-foreground" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold text-orange-500">R$ {stats?.totalCommission.toFixed(2)}</div>
+                        <div className="text-2xl font-bold text-orange-500">R$ {stats?.totalServiceCommission.toFixed(2)}</div>
                         <div className="flex justify-end mt-1">
                             <p className="text-[10px] font-medium text-orange-400">
-                                Projetado: R$ {stats?.projectedCommission.toFixed(2)}
+                                Projetado: R$ {stats?.projectedServiceCommission.toFixed(2)}
                             </p>
                         </div>
                     </CardContent>
@@ -259,11 +302,11 @@ export default function DashboardPage() {
 
             <section className="space-y-4 pb-12">
                 <div>
-                    <h3 className="text-xl font-bold tracking-tight">Relatório de Comissões</h3>
-                    <p className="text-sm text-muted-foreground">Estatísticas por vendedor baseadas em ordens finalizadas.</p>
+                    <h3 className="text-xl font-bold tracking-tight">Relatório de Comissões de Serviço</h3>
+                    <p className="text-sm text-muted-foreground">Estatísticas por aplicador baseadas em ordens finalizadas (com filtro de data).</p>
                 </div>
                 
-                <CommissionReport />
+                <CommissionReport dateFilters={dateFilters} />
             </section>
             
             <Dialog open={isPasswordModalOpen} onOpenChange={(open) => {
@@ -327,8 +370,8 @@ export default function DashboardPage() {
     );
 }
 
-function CommissionReport() {
-    const { data: report, isLoading } = api.order.getCommissionReport.useQuery();
+function CommissionReport({ dateFilters }: { dateFilters: any }) {
+    const { data: report, isLoading } = api.order.getServiceCommissionReport.useQuery(dateFilters);
 
     if (isLoading) return <div className="text-sm">Carregando relatório...</div>;
     if (!report || report.length === 0) return <div className="text-sm text-muted-foreground">Nenhuma comissão registrada para ordens finalizadas.</div>;
@@ -350,12 +393,12 @@ function CommissionReport() {
                                 <span className="font-semibold">{item.orderCount}</span>
                             </div>
                             <div className="flex justify-between text-sm">
-                                <span className="text-muted-foreground">Vendas Totais:</span>
+                                <span className="text-muted-foreground">Serviços Totais:</span>
                                 <span className="font-semibold">R$ {item.totalRevenue.toFixed(2)}</span>
                             </div>
                             <div className="flex justify-between text-lg border-t pt-2 mt-2">
                                 <span className="font-bold text-primary">Comissão:</span>
-                                <span className="font-bold text-primary">R$ {item.totalCommission.toFixed(2)}</span>
+                                <span className="font-bold text-primary">R$ {item.totalServiceCommission.toFixed(2)}</span>
                             </div>
                         </div>
                     </CardContent>

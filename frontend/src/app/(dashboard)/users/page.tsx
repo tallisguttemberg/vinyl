@@ -106,7 +106,7 @@ export default function UsersPage() {
                     <TableHeader>
                         <TableRow className="bg-muted/50">
                             <TableHead className="font-semibold">Nome</TableHead>
-                            <TableHead className="font-semibold">Usuário</TableHead>
+                            <TableHead className="font-semibold hidden sm:table-cell">Usuário</TableHead>
                             <TableHead className="font-semibold">Email</TableHead>
                             <TableHead className="font-semibold">Perfil</TableHead>
                             <TableHead className="font-semibold">Status</TableHead>
@@ -141,8 +141,22 @@ export default function UsersPage() {
 
                                 return (
                                     <TableRow key={user.id} className="hover:bg-muted/30 transition-colors">
-                                        <TableCell className="font-medium">{user.nomeCompleto}</TableCell>
-                                        <TableCell className="text-sm font-mono text-primary">{user.usuario}</TableCell>
+                                        <TableCell>
+                                            <div className="flex items-center gap-3">
+                                                <div className="h-9 w-9 rounded-full bg-indigo-600/10 flex items-center justify-center text-indigo-600 font-bold border border-indigo-200 dark:border-indigo-900 shadow-sm">
+                                                    {user.nomeCompleto.charAt(0).toUpperCase()}
+                                                </div>
+                                                <div className="flex flex-col">
+                                                    <span className="font-semibold text-foreground">
+                                                        {user.nomeCompleto}
+                                                    </span>
+                                                    <span className="text-xs text-muted-foreground sm:hidden">
+                                                        @{user.usuario}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </TableCell>
+                                        <TableCell className="text-sm font-mono text-primary hidden sm:table-cell">@{user.usuario}</TableCell>
                                         <TableCell className="text-muted-foreground text-sm">{user.email}</TableCell>
                                         <TableCell>
                                             <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${perfilBadge[user.perfil] ?? ""}`}>

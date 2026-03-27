@@ -69,7 +69,7 @@ export default function OrdersPage() {
                         <TableRow>
                             <TableHead>Data</TableHead>
                             <TableHead>Cliente</TableHead>
-                            <TableHead>Vendedor</TableHead>
+                            <TableHead>Aplicador</TableHead>
                             <TableHead>Status</TableHead>
                             <TableHead>Faturamento</TableHead>
                             <TableHead>Lucro</TableHead>
@@ -87,11 +87,11 @@ export default function OrdersPage() {
                                 <TableCell colSpan={7} className="text-center">Nenhuma ordem cadastrada.</TableCell>
                             </TableRow>
                         ) : (
-                            orders?.map((order) => (
+                            orders?.map((order: any) => (
                                 <TableRow key={order.id}>
                                     <TableCell>{format(new Date(order.createdAt), 'dd/MM/yyyy')}</TableCell>
                                     <TableCell className="font-medium">{order.customerName}</TableCell>
-                                    <TableCell>{(order as any).vendedor?.nomeCompleto || "-"}</TableCell>
+                                    <TableCell>{(order as any).aplicador?.nomeCompleto || "-"}</TableCell>
                                     <TableCell>
                                         <Badge variant={order.status === 'COMPLETED' ? 'default' : 'secondary'}>
                                             {order.status}

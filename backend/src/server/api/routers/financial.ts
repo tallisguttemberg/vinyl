@@ -24,11 +24,36 @@ export const financialRouter = createTRPCRouter({
             };
 
             if (input?.type) where.type = input.type;
-            if (input?.status) where.status = input.status;
+            if (input?.status) {
+                const today = new Date();
+                today.setUTCHours(0, 0, 0, 0);
+
+                if (input.status === "OVERDUE") {
+                    where.OR = [
+                        { status: "OVERDUE" },
+                        { status: "PENDING", dueDate: { lt: today } }
+                    ];
+                } else if (input.status === "PENDING") {
+                    where.status = "PENDING";
+                    if (where.dueDate) {
+                        where.dueDate.gte = today;
+                    } else {
+                        where.dueDate = { gte: today };
+                    }
+                } else {
+                    where.status = input.status;
+                }
+            }
             if (input?.category) where.category = input.category;
             if (input?.startDate || input?.endDate) {
-                where.dueDate = {};
-                if (input.startDate) where.dueDate.gte = input.startDate;
+                if (!where.dueDate) where.dueDate = {};
+                if (input.startDate) {
+                    if (where.dueDate.gte) {
+                        where.dueDate.gte = new Date(Math.max(where.dueDate.gte.getTime(), input.startDate.getTime()));
+                    } else {
+                        where.dueDate.gte = input.startDate;
+                    }
+                }
                 if (input.endDate) where.dueDate.lte = input.endDate;
             }
 
@@ -56,36 +81,7 @@ export const financialRouter = createTRPCRouter({
             };
         }),
 
-    getSummary: checkPermission("financial", "visualizar").query(async ({ ctx }) => {
-        if (!ctx.session.orgId) return null;
 
-        // Usar groupBy no banco em vez de processar tudo em memória
-        const groups = await ctx.prisma.financialTransaction.groupBy({
-            by: ["type", "status"],
-            where: {
-                organizationId: ctx.session.orgId,
-                status: { in: ["PENDING", "PAID"] },
-            },
-            _sum: { amount: true },
-        });
-
-        const get = (type: string, status: string) =>
-            Number(groups.find(g => g.type === type && g.status === status)?._sum?.amount ?? 0);
-
-        const payablePending    = get("PAYABLE",    "PENDING");
-        const payablePaid       = get("PAYABLE",    "PAID");
-        const receivablePending = get("RECEIVABLE", "PENDING");
-        const receivablePaid    = get("RECEIVABLE", "PAID");
-
-        return {
-            payablePending,
-            payablePaid,
-            receivablePending,
-            receivablePaid,
-            balancePending: receivablePending - payablePending,
-            balancePaid:    receivablePaid    - payablePaid,
-        };
-    }),
 
     getDailyMetrics: checkPermission("financial", "visualizar")
         .input(z.object({ days: z.number().default(30) }).optional())
@@ -95,7 +91,7 @@ export const financialRouter = createTRPCRouter({
             const days = input?.days || 30;
             const startDate = new Date();
             startDate.setDate(startDate.getDate() - days);
-            startDate.setHours(0, 0, 0, 0);
+            startDate.setUTCHours(0, 0, 0, 0);
 
             const orders = await ctx.prisma.order.findMany({
                 where: {
@@ -194,7 +190,7 @@ export const financialRouter = createTRPCRouter({
                 amount: z.number().min(0.01),
                 dueDate: z.date(),
                 paymentDate: z.date().optional(),
-                paymentMethod: z.string().optional(),
+                paymentMethod: z.string().min(1, "O método de pagamento é obrigatório"),
                 category: z.string().optional(),
                 orderId: z.string().optional(),
                 entityName: z.string().optional(),
@@ -323,5 +319,119 @@ export const financialRouter = createTRPCRouter({
 
                 return { success: true };
             });
+        }),
+
+    getCashFlow: checkPermission("financial", "visualizar")
+        .input(z.object({
+            startDate: z.date().optional(),
+            endDate: z.date().optional(),
+            type: z.enum(["RECEIVABLE", "PAYABLE"]).optional(),
+            status: z.enum(["PENDING", "PAID", "OVERDUE", "CANCELLED", "ALL"]).optional(),
+            category: z.string().optional(),
+        }))
+        .query(async ({ ctx, input }) => {
+            if (!ctx.session.orgId) return null;
+
+            const where: any = {
+                organizationId: ctx.session.orgId,
+                status: { not: "CANCELLED" }
+            };
+
+            if (input.type) {
+                where.type = input.type;
+            }
+
+            if (input.status && input.status !== "ALL") {
+                where.status = input.status;
+            }
+
+            if (input.category && input.category !== "ALL") {
+                where.category = input.category;
+            }
+
+            if (input.startDate || input.endDate) {
+                where.dueDate = {}; 
+                if (input.startDate) where.dueDate.gte = input.startDate;
+                if (input.endDate) where.dueDate.lte = input.endDate;
+            }
+
+            // 1. Calculate Initial Balances (from transactions BEFORE the startDate)
+            let initialRealBalance = 0; 
+            let initialProjectedBalance = 0; 
+
+            if (input.startDate) {
+                const pastTxs = await ctx.prisma.financialTransaction.findMany({
+                    where: {
+                        organizationId: ctx.session.orgId,
+                        dueDate: { lt: input.startDate },
+                        status: { not: "CANCELLED" }
+                    },
+                    select: { type: true, status: true, amount: true }
+                });
+
+                pastTxs.forEach((tx) => {
+                    const amount = Number(tx.amount);
+                    const isEntry = tx.type === "RECEIVABLE";
+                    const signedAmount = isEntry ? amount : -amount;
+
+                    initialProjectedBalance += signedAmount;
+                    if (tx.status === "PAID") {
+                        initialRealBalance += signedAmount;
+                    }
+                });
+            }
+
+            // 2. Query all transactions for the view
+            const transactions = await ctx.prisma.financialTransaction.findMany({
+                where,
+                orderBy: { dueDate: 'asc' }
+            });
+
+            let currentRealBalance = initialRealBalance;
+            let currentProjectedBalance = initialProjectedBalance;
+
+            let periodEntries = 0;
+            let periodExits = 0;
+            let overdueCount = 0;
+
+            const cashFlowItems = transactions.map(tx => {
+                const amount = Number(tx.amount);
+                const isEntry = tx.type === "RECEIVABLE";
+                const signedAmount = isEntry ? amount : -amount;
+
+                if (isEntry) periodEntries += amount;
+                else periodExits += amount;
+
+                if (tx.status === "OVERDUE") overdueCount++;
+
+                currentProjectedBalance += signedAmount;
+                
+                let rowRealBalance = currentRealBalance;
+                if (tx.status === "PAID") {
+                    currentRealBalance += signedAmount;
+                    rowRealBalance = currentRealBalance;
+                }
+
+                return {
+                    ...tx,
+                    amount,
+                    signedAmount,
+                    accumulatedReal: rowRealBalance,
+                    accumulatedProjected: currentProjectedBalance,
+                };
+            });
+
+            return {
+                items: cashFlowItems,
+                summary: {
+                    initialRealBalance,
+                    initialProjectedBalance,
+                    finalRealBalance: currentRealBalance,
+                    finalProjectedBalance: currentProjectedBalance,
+                    periodEntries,
+                    periodExits,
+                    overdueCount
+                }
+            };
         }),
 });

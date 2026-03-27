@@ -1,4 +1,5 @@
 "use client";
+import Image from "next/image";
 
 import { useRouter } from "next/navigation";
 import { ThemeToggle } from "./ThemeToggle";
@@ -27,6 +28,7 @@ const routeTitles: Record<string, string> = {
     "/users": "Usuários",
     "/financial": "Financeiro",
     "/reports/logs": "Logs",
+    "/profile": "Meu Perfil",
 };
 
 export function Navbar() {
@@ -67,9 +69,7 @@ export function Navbar() {
                     </SheetContent>
                 </Sheet>
 
-                <div className="font-bold text-foreground text-xl hidden md:block">
-                    Vinyl Dashboard
-                </div>
+
 
                 <div className="font-semibold text-foreground md:hidden truncate flex-1 text-center">
                     {currentTitle}
@@ -81,20 +81,24 @@ export function Navbar() {
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                             <button className="flex items-center gap-2 hover:opacity-80 transition-opacity outline-none">
-                                <div className="h-8 w-8 rounded-full bg-indigo-600 flex items-center justify-center text-white font-bold border border-indigo-400/30 shadow-sm">
-                                    {(user as any)?.nome?.charAt(0).toUpperCase() || "A"}
+                                <div className="h-8 w-8 rounded-full overflow-hidden bg-indigo-600 flex items-center justify-center text-white font-bold border border-indigo-400/30 shadow-sm relative">
+                                    {user?.fotoPerfil ? (
+                                        <Image src={user.fotoPerfil} alt={user.nomeCompleto} fill className="object-cover" />
+                                    ) : (
+                                        user?.nomeCompleto?.charAt(0).toUpperCase() || "A"
+                                    )}
                                 </div>
                                 <span className="text-sm font-medium hidden sm:block">
-                                    {(user as any)?.nome || "Admin"}
+                                    {user?.nomeCompleto || "Admin"}
                                 </span>
                             </button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="w-56">
                             <DropdownMenuLabel>Minha Conta</DropdownMenuLabel>
                             <DropdownMenuSeparator />
-                            <DropdownMenuItem disabled>
+                            <DropdownMenuItem onClick={() => router.push("/profile")}>
                                 <User className="mr-2 h-4 w-4" />
-                                Perfil (Em breve)
+                                Perfil
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem onClick={handleSignOut} className="text-red-600 focus:text-red-500">

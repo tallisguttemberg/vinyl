@@ -29,7 +29,7 @@ const formSchema = z.object({
     amount: z.coerce.number().min(0.01, "O valor deve ser maior que zero"),
     dueDate: z.string().nonempty("A data de vencimento é obrigatória"),
     paymentDate: z.string().optional(),
-    paymentMethod: z.string().optional(),
+    paymentMethod: z.string().min(1, "O método de pagamento é obrigatório"),
     category: z.string().optional(),
     entityName: z.string().optional(),
 });

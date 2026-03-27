@@ -26,10 +26,18 @@ export function OrderEditClient({ id }: { id: string }) {
 
     const initialValues = {
         customerName: order.customerName,
-        vendedorId: (order as any).vendedorId ?? null,
-        commissionRate: Number(order.commissionRate),
+        aplicadorId: (order as any).aplicadorId ?? null,
+        serviceCommissionRate: Number(order.serviceCommissionRate),
         discountType: ((order as any).discountType ?? "PERCENTAGE") as "PERCENTAGE" | "FIXED",
         discountValue: Number((order as any).discountValue ?? 0),
+        supplies: ((order as any).supplies || []).map((s: any) => ({
+            supplyId: s.supplyId,
+            quantity: Number(s.quantity || 1),
+        })),
+        equipment: ((order as any).equipments || []).map((e: any) => ({
+            equipmentId: e.equipmentId,
+            days: e.days,
+        })),
         items: order.items.map(item => ({
             serviceTypeId: item.serviceTypeId,
             materialId: item.materialId,
@@ -38,7 +46,9 @@ export function OrderEditClient({ id }: { id: string }) {
             mlUsed: Number((item as any).mlUsed || 0),
             quantity: item.quantity,
             priceInputType: "UNIT" as const,
-            unitPrice: Number(item.price) / item.quantity,
+            unitPrice: item.serviceType.billingType === "PER_M2" 
+                ? Number(item.price) / (Number(item.width) * Number(item.height) * item.quantity)
+                : Number(item.price) / item.quantity,
             wastePercentage: Number((item as any).wastePercentage || 0),
             finishings: (item as any).finishings ? (item as any).finishings.map((f: any) => ({
                  name: f.name,

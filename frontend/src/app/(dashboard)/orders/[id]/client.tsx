@@ -24,7 +24,8 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 export default function OrderDetailsClient({ id }: { id: string }) {
-    const { data: order, isLoading } = api.order.getById.useQuery({ id });
+    const { data: orderData, isLoading } = api.order.getById.useQuery({ id });
+    const order = orderData as any;
     const { data: settings } = api.organizationSettings.getSettings.useQuery();
     const { data: user } = api.user.getMe.useQuery();
     const utils = api.useUtils();
@@ -152,7 +153,16 @@ export default function OrderDetailsClient({ id }: { id: string }) {
 
             {/* Print Header */}
             <div className="hidden print:block mb-8">
-                <div className="text-center border-b pb-4 mb-4">
+                <div className="flex flex-col items-center text-center border-b pb-4 mb-4">
+                    {settings?.logoUrl && (
+                        <div className="relative h-20 w-80 mb-4 mx-auto">
+                            <img
+                                src={settings.logoUrl}
+                                alt="Logo"
+                                className="object-contain h-full w-full"
+                            />
+                        </div>
+                    )}
                     <h1 className="text-2xl font-bold">{settings?.businessName || "Ordem de Serviço / Proposta"}</h1>
                     <div className="text-muted-foreground text-sm space-y-1">
                         {settings?.address && <p>{settings.address}</p>}
@@ -197,7 +207,7 @@ export default function OrderDetailsClient({ id }: { id: string }) {
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
-                                    {order.items.map((item) => (
+                                    {order.items.map((item: any) => (
                                         <TableRow key={item.id}>
                                             <TableCell>
                                                 <div className="font-medium">{item.serviceType.name}</div>
@@ -206,7 +216,7 @@ export default function OrderDetailsClient({ id }: { id: string }) {
                                                 )}
                                                 {item.finishings.length > 0 && (
                                                     <div className="mt-1 flex gap-1 flex-wrap">
-                                                        {item.finishings.map(finishing => (
+                                                        {item.finishings.map((finishing: any) => (
                                                              <Badge key={finishing.id} variant="secondary" className="text-[10px] py-0 px-1">
                                                                  + {finishing.name}
                                                              </Badge>
@@ -237,6 +247,54 @@ export default function OrderDetailsClient({ id }: { id: string }) {
                                     ))}
                                 </TableBody>
                             </Table>
+
+                            {(order.supplies?.length || 0) > 0 && (
+                                <div className="mt-8">
+                                    <h4 className="font-semibold text-sm mb-4">Insumos Adicionais</h4>
+                                    <Table>
+                                        <TableHeader>
+                                            <TableRow>
+                                                <TableHead>Insumo</TableHead>
+                                                <TableHead className="text-right">Consumo/Qtd</TableHead>
+                                                <TableHead className="text-right">Custo</TableHead>
+                                            </TableRow>
+                                        </TableHeader>
+                                        <TableBody>
+                                            {order.supplies.map((s: any) => (
+                                                <TableRow key={s.id}>
+                                                    <TableCell className="py-2">{s.supply.name}</TableCell>
+                                                    <TableCell className="text-right py-2">{Number(s.quantity).toFixed(2)} {s.supply.unit}</TableCell>
+                                                    <TableCell className="text-right py-2 font-medium text-red-500">R$ {Number(s.totalCost).toFixed(2)}</TableCell>
+                                                </TableRow>
+                                            ))}
+                                        </TableBody>
+                                    </Table>
+                                </div>
+                            )}
+
+                            {(order.equipments?.length || 0) > 0 && (
+                                <div className="mt-8">
+                                    <h4 className="font-semibold text-sm mb-4">Equipamentos</h4>
+                                    <Table>
+                                        <TableHeader>
+                                            <TableRow>
+                                                <TableHead>Equipamento</TableHead>
+                                                <TableHead className="text-right">Dias</TableHead>
+                                                <TableHead className="text-right">Custo</TableHead>
+                                            </TableRow>
+                                        </TableHeader>
+                                        <TableBody>
+                                            {order.equipments.map((e: any) => (
+                                                <TableRow key={e.id}>
+                                                    <TableCell className="py-2">{e.equipment.name}</TableCell>
+                                                    <TableCell className="text-right py-2">{e.days} dias</TableCell>
+                                                    <TableCell className="text-right py-2 font-medium text-red-500">R$ {Number(e.totalCost).toFixed(2)}</TableCell>
+                                                </TableRow>
+                                            ))}
+                                        </TableBody>
+                                    </Table>
+                                </div>
+                            )}
                         </CardContent>
                     </Card>
 
@@ -292,39 +350,63 @@ export default function OrderDetailsClient({ id }: { id: string }) {
                         <CardContent className="space-y-4">
                             <div className="flex justify-between items-center">
                                 <span className="text-muted-foreground">Faturamento Total</span>
-                                <span className="text-xl font-bold">R$ {Number(order.totalAmount).toFixed(2)}</span>
+                                <span className="text-xl font-bold text-primary">R$ {Number(order.totalAmount).toFixed(2)}</span>
                             </div>
 
                             <Separator />
 
                             <div className="space-y-2 text-sm no-print">
                                 <div className="flex justify-between">
-                                    <span className="text-muted-foreground">Custo Material & Op</span>
-                                    <span>R$ {(Number(order.totalCost) || 0).toFixed(2)}</span>
+                                    <span className="text-muted-foreground">(-) Materiais (c/ desperdício)</span>
+                                    <span>R$ {Number(order.totalMaterialCost || 0).toFixed(2)}</span>
                                 </div>
                                 <div className="flex justify-between">
-                                    <span className="text-muted-foreground">Comissões</span>
-                                    <span>R$ {Number(order.totalCommission).toFixed(2)}</span>
+                                    <span className="text-muted-foreground">(-) Custo Operacional (Máquina)</span>
+                                    <span>R$ {Number(order.totalOperationalCost || 0).toFixed(2)}</span>
                                 </div>
-                                <div className="flex justify-between text-xs text-muted-foreground pl-2">
-                                    <span>Taxa</span>
-                                    <span>{Number(order.commissionRate)}%</span>
+                                {Number(order.totalFinishingCost) > 0 && (
+                                    <div className="flex justify-between">
+                                        <span className="text-muted-foreground">(-) Extras / Acabamentos</span>
+                                        <span>R$ {Number(order.totalFinishingCost || 0).toFixed(2)}</span>
+                                    </div>
+                                )}
+                                {Number(order.totalSupplyCost) > 0 && (
+                                    <div className="flex justify-between">
+                                        <span className="text-muted-foreground">(-) Insumos Adicionais</span>
+                                        <span className="text-red-500">- R$ {Number(order.totalSupplyCost).toFixed(2)}</span>
+                                    </div>
+                                )}
+                                {Number(order.totalEquipmentCost) > 0 && (
+                                    <div className="flex justify-between">
+                                        <span className="text-muted-foreground">(-) Locação / Equipamentos</span>
+                                        <span className="text-red-500">- R$ {Number(order.totalEquipmentCost).toFixed(2)}</span>
+                                    </div>
+                                )}
+                                <div className="flex justify-between">
+                                    <span className="text-muted-foreground">(-) Comissões de Serviço</span>
+                                    <span className="text-red-500">- R$ {Number(order.totalServiceCommission).toFixed(2)}</span>
                                 </div>
                             </div>
 
                             <Separator className="no-print" />
 
-                            <div className="flex justify-between items-center text-green-600 no-print">
-                                <span className="font-medium">Lucro Bruto</span>
+                            <div className={`flex justify-between items-center no-print ${Number(order.profit) < 0 ? 'text-red-600' : 'text-green-600'}`}>
+                                <span className="font-medium">Lucro Bruto (DRE)</span>
                                 <span className="text-xl font-bold">R$ {Number(order.profit).toFixed(2)}</span>
                             </div>
 
                             <div className="flex justify-between items-center text-sm no-print">
-                                <span className="text-muted-foreground">Margem</span>
+                                <span className="text-muted-foreground">Margem Final</span>
                                 <Badge variant={Number(order.margin) > 30 ? "default" : Number(order.margin) > 10 ? "secondary" : "destructive"}>
                                     {Number(order.margin).toFixed(1)}%
                                 </Badge>
                             </div>
+
+                            {Number(order.margin) < Number(settings?.minimumMarginAllowed || 15) && (
+                                <p className="text-[10px] text-red-500 font-medium leading-tight no-print">
+                                    ⚠️ Atenção: A margem está abaixo do mínimo permitido ({Number(settings?.minimumMarginAllowed || 15)}%). Esta ordem pode necessitar de autorização especial.
+                                </p>
+                            )}
                         </CardContent>
                     </Card>
 
@@ -334,8 +416,8 @@ export default function OrderDetailsClient({ id }: { id: string }) {
                         </CardHeader>
                         <CardContent className="space-y-4 text-sm">
                             <div className="flex justify-between">
-                                <span className="text-muted-foreground">Vendedor</span>
-                                <span className="font-medium">{(order as any).vendedor?.nomeCompleto || "Nenhum"}</span>
+                                <span className="text-muted-foreground">Aplicador</span>
+                                <span className="font-medium">{(order as any).aplicador?.nomeCompleto || "Nenhum"}</span>
                             </div>
                             <Separator />
                             <div className="flex justify-between">

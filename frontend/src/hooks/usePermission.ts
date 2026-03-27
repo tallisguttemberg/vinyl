@@ -15,10 +15,7 @@ export function usePermission() {
     const { data: user, isLoading } = api.user.getMe.useQuery();
 
     /** Verifica se o usuário atual é um administrador */
-    const isAdmin: boolean =
-        user?.perfil === "ADMIN" ||
-        (user as any)?.userId === "admin" ||
-        (user as any)?.id === "admin";
+    const isAdmin: boolean = user?.perfil === "ADMIN" || user?.id === "admin";
 
     /**
      * Retorna true se o usuário tem a permissão solicitada.

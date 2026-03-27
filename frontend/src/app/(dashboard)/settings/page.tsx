@@ -98,57 +98,7 @@ export default function SettingsPage() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Identidade Visual</CardTitle>
-                        <CardDescription>
-                            Faça o upload da logo da sua empresa para aparecer no menu.
-                        </CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-6">
-                        <div className="flex flex-col items-center justify-center p-6 border-2 border-dashed rounded-lg space-y-4">
-                            {settings?.logoUrl ? (
-                                <div className="relative h-32 w-32">
-                                    <Image
-                                        src={settings.logoUrl}
-                                        alt="Logo"
-                                        fill
-                                        className="rounded-lg object-contain"
-                                    />
-                                </div>
-                            ) : (
-                                <div className="h-32 w-32 bg-muted rounded-lg flex items-center justify-center">
-                                    <Building2 className="h-12 w-12 text-muted-foreground" />
-                                </div>
-                            )}
 
-                            <div className="flex flex-col items-center w-full gap-2">
-                                <Input
-                                    type="file"
-                                    accept="image/*"
-                                    className="cursor-pointer"
-                                    disabled={!canEdit}
-                                    onChange={(e) => {
-                                        const file = e.target.files?.[0];
-                                        if (file) {
-                                            const reader = new FileReader();
-                                            reader.onloadend = () => {
-                                                updateSettings.mutate({
-                                                    ...form.getValues(),
-                                                    logoUrl: reader.result as string
-                                                });
-                                            };
-                                            reader.readAsDataURL(file);
-                                        }
-                                    }}
-                                />
-                                <p className="text-[10px] text-muted-foreground">
-                                    Formatos aceitos: PNG, JPG, SVG. Tamanho ideal: 200x200px.
-                                </p>
-                            </div>
-                        </div>
-                    </CardContent>
-                </Card>
 
                 <Card>
                     <CardHeader>
@@ -257,6 +207,6 @@ export default function SettingsPage() {
                 </CardContent>
             </Card>
 
-        </div>
+            </div>
     );
 }

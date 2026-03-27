@@ -4,6 +4,8 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/trpc/react";
 import { Eye, EyeOff } from "lucide-react";
+import Image from "next/image";
+
 
 export default function LoginPage() {
     const [username, setUsername] = useState("");
@@ -11,6 +13,11 @@ export default function LoginPage() {
     const [error, setError] = useState("");
     const [showPassword, setShowPassword] = useState(false);
     const router = useRouter();
+
+    const { data: settings } = api.organizationSettings.getPublicSettings.useQuery();
+
+    const logoLight = settings?.logoUrl || "/logo.png";
+    const logoDark = settings?.logoDarkUrl || "/logo-dark.png";
 
     const loginMutation = api.user.login.useMutation({
         onSuccess: (data) => {
@@ -32,14 +39,28 @@ export default function LoginPage() {
     };
 
     return (
-        <div className="flex min-h-screen items-center justify-center bg-gray-900 px-4 py-12 sm:px-6 lg:px-8">
-            <div className="w-full max-w-md space-y-8 bg-gray-800 p-10 rounded-xl shadow-2xl border border-gray-700">
-                <div>
-                    <h2 className="mt-6 text-center text-3xl font-extrabold tracking-tight text-white">
-                        Vinyl Admin
-                    </h2>
-                    <p className="mt-2 text-center text-sm text-gray-400">
-                        Enter your credentials to access the dashboard
+        <div className="flex min-h-screen items-center justify-center bg-background px-4 py-12 sm:px-6 lg:px-8">
+            <div className="w-full max-w-md space-y-8 bg-card p-10 rounded-2xl shadow-xl border border-border">
+                <div className="flex flex-col items-center">
+                    {/* Logo container enlarged to h-40 for high prominence */}
+                    <div className="relative h-40 w-full mb-4 transition-transform duration-300 hover:scale-105">
+                        <Image
+                            src={logoLight}
+                            alt="Vinyl Logo"
+                            fill
+                            className="object-contain dark:hidden drop-shadow-md"
+                            priority
+                        />
+                        <Image
+                            src={logoDark}
+                            alt="Vinyl Logo Dark"
+                            fill
+                            className="object-contain hidden dark:block drop-shadow-md"
+                            priority
+                        />
+                    </div>
+                    <p className="mt-2 text-center text-sm text-muted-foreground font-medium">
+                        Insira suas credenciais para acessar o painel
                     </p>
                 </div>
                 <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
@@ -50,8 +71,8 @@ export default function LoginPage() {
                                 required
                                 value={username}
                                 onChange={(e) => setUsername(e.target.value)}
-                                className="relative block w-full appearance-none rounded-none rounded-t-md border border-gray-700 bg-gray-900 px-3 py-2 text-gray-100 placeholder-gray-500 focus:z-10 focus:border-indigo-500 focus:outline-none focus:ring-indigo-500 sm:text-sm"
-                                placeholder="Username"
+                                className="relative block w-full appearance-none rounded-none rounded-t-md border border-input bg-background px-3 py-3 text-foreground placeholder-muted-foreground focus:z-10 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary sm:text-sm transition-colors"
+                                placeholder="Usuário"
                             />
                         </div>
                         <div className="relative">
@@ -60,12 +81,12 @@ export default function LoginPage() {
                                 required
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}
-                                className="relative block w-full appearance-none rounded-none rounded-b-md border border-gray-700 bg-gray-900 px-3 py-2 text-gray-100 placeholder-gray-500 focus:z-10 focus:border-indigo-500 focus:outline-none focus:ring-indigo-500 sm:text-sm pr-10"
-                                placeholder="Password"
+                                className="relative block w-full appearance-none rounded-none rounded-b-md border border-input bg-background px-3 py-3 text-foreground placeholder-muted-foreground focus:z-10 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary sm:text-sm pr-10 transition-colors"
+                                placeholder="Senha"
                             />
                             <button
                                 type="button"
-                                className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-gray-200 focus:outline-none focus:z-20"
+                                className="absolute inset-y-0 right-0 flex items-center pr-3 text-muted-foreground hover:text-foreground focus:outline-none focus:z-20 transition-colors"
                                 onClick={() => setShowPassword(!showPassword)}
                             >
                                 {showPassword ? (
@@ -78,7 +99,7 @@ export default function LoginPage() {
                     </div>
 
                     {error && (
-                        <div className="text-red-500 text-sm text-center">
+                        <div className="text-destructive text-sm font-semibold text-center bg-destructive/10 py-2 rounded-md">
                             {error}
                         </div>
                     )}
@@ -86,9 +107,9 @@ export default function LoginPage() {
                     <div>
                         <button
                             type="submit"
-                            className="group relative flex w-full justify-center rounded-md border border-transparent bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition-colors"
+                            className="group relative flex w-full justify-center rounded-lg border border-transparent bg-primary px-4 py-3 text-sm font-bold text-primary-foreground hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-background transition-all duration-300 shadow-md hover:shadow-lg"
                         >
-                            Sign in
+                            Entrar
                         </button>
                     </div>
                 </form>

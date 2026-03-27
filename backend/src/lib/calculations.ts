@@ -21,8 +21,20 @@ export interface CalculationInput {
             cost: number;
         }[];
     }[];
-    commissionRate: number; // percentage, e.g., 10 for 10%
-    commissionBase?: 'GROSS_REVENUE' | 'GROSS_PROFIT'; // Default usually GROSS_REVENUE
+    supplies?: {
+        id: string;
+        name: string;
+        unitCost: number;
+        quantity: number;
+    }[];
+    equipment?: {
+        id: string;
+        name: string;
+        dailyCost: number;
+        days: number;
+    }[];
+    serviceCommissionRate: number; // percentage, e.g., 10 for 10%
+    serviceCommissionBase?: 'GROSS_REVENUE' | 'GROSS_PROFIT'; // Default usually GROSS_REVENUE
     discountType?: 'PERCENTAGE' | 'FIXED';
     discountValue?: number;
 }
@@ -34,8 +46,10 @@ export interface CalculationResult {
     totalMaterialCost: number;       // Just raw material + waste
     totalOperationalCost: number;    // Machine + overhead
     totalFinishingCost: number;      // Cost from finishings
-    totalCost: number;               // material + operational + finishing
-    totalCommission: number;
+    totalSupplyCost: number;         // Cost from supplies
+    totalEquipmentCost: number;      // Cost from equipment
+    totalCost: number;               // material + operational + finishing + supply + equipment
+    totalServiceCommission: number;
     grossProfit: number;             // Revenue - Total Cost - Commission
     margin: number;                  // (Net Profit / Revenue) * 100
     items: {
@@ -46,6 +60,7 @@ export interface CalculationResult {
         area: number; // m2
         mlUsed?: number;
     }[];
+    totalArea: number;
 }
 
 export function calculateOrder(input: CalculationInput): CalculationResult {
@@ -70,8 +85,6 @@ export function calculateOrder(input: CalculationInput): CalculationResult {
         let finishingCost = 0;
         if (item.finishings && item.finishings.length > 0) {
             for (const f of item.finishings) {
-                // Assuming finishings in the input are already multiplied by quantity if they are linear/fixed
-                // For simplicity, we just sum them up directly.
                 finishingRev += f.price;
                 finishingCost += f.cost;
             }
@@ -113,7 +126,26 @@ export function calculateOrder(input: CalculationInput): CalculationResult {
         };
     });
 
-    // 5. Apply Discount
+    // 5. Calculate Supplies Cost
+    let totalSupplyCost = 0;
+    const totalArea = itemsResult.reduce((acc, i) => acc + i.area, 0);
+
+    if (input.supplies && input.supplies.length > 0) {
+        for (const s of input.supplies) {
+            const cost = s.quantity * s.unitCost;
+            totalSupplyCost += cost;
+        }
+    }
+
+    // 6. Calculate Equipment Cost
+    let totalEquipmentCost = 0;
+    if (input.equipment && input.equipment.length > 0) {
+        for (const e of input.equipment) {
+            totalEquipmentCost += e.dailyCost * e.days;
+        }
+    }
+
+    // 7. Apply Discount
     let finalRevenue = totalRevenue;
     let actualDiscountValue = 0;
     if (input.discountType === 'FIXED' && input.discountValue) {
@@ -123,22 +155,19 @@ export function calculateOrder(input: CalculationInput): CalculationResult {
     }
     finalRevenue = Math.max(0, finalRevenue - actualDiscountValue);
 
-    const totalCost = totalMaterialCost + totalOperationalCost + totalFinishingCost;
+    const totalCost = totalMaterialCost + totalOperationalCost + totalFinishingCost + totalSupplyCost + totalEquipmentCost;
 
-    // 6. Calculate Commission
+    // 8. Calculate Commission
     let commissionBaseValue = finalRevenue;
-    if (input.commissionBase === 'GROSS_PROFIT') {
-        // Commission over profit (Revenue - Costs)
+    if (input.serviceCommissionBase === 'GROSS_PROFIT') {
         commissionBaseValue = Math.max(0, finalRevenue - totalCost);
     }
-    const totalCommission = commissionBaseValue * (input.commissionRate / 100);
+    const totalServiceCommission = commissionBaseValue * (input.serviceCommissionRate / 100);
 
-    // 7. Calculate Net Profit
-    // Net Profit = Final Revenue - Total Cost - Commission
-    const grossProfit = finalRevenue - totalCost - totalCommission;
+    // 9. Calculate Net Profit
+    const grossProfit = finalRevenue - totalCost - totalServiceCommission;
 
-    // 8. Calculate Margin
-    // Margin % = (Net Profit / Final Revenue) * 100
+    // 10. Calculate Margin
     let margin = 0;
     if (finalRevenue > 0) {
         margin = (grossProfit / finalRevenue) * 100;
@@ -151,10 +180,13 @@ export function calculateOrder(input: CalculationInput): CalculationResult {
         totalMaterialCost: Number(totalMaterialCost.toFixed(2)),
         totalOperationalCost: Number(totalOperationalCost.toFixed(2)),
         totalFinishingCost: Number(totalFinishingCost.toFixed(2)),
+        totalSupplyCost: Number(totalSupplyCost.toFixed(2)),
+        totalEquipmentCost: Number(totalEquipmentCost.toFixed(2)),
         totalCost: Number(totalCost.toFixed(2)),
-        totalCommission: Number(totalCommission.toFixed(2)),
+        totalServiceCommission: Number(totalServiceCommission.toFixed(2)),
         grossProfit: Number(grossProfit.toFixed(2)),
         margin: Number(margin.toFixed(2)),
+        totalArea,
         items: itemsResult.map(i => ({
             revenue: Number(i.revenue.toFixed(2)),
             materialCost: Number(i.materialCost.toFixed(2)),
