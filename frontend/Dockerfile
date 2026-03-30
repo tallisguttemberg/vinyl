@@ -1,5 +1,12 @@
 FROM node:20-slim AS builder
 WORKDIR /app
+
+# Configure npm for flaky networks (large binaries like @prisma/engines)
+RUN npm config set fetch-retries 5 \
+    && npm config set fetch-retry-mintimeout 20000 \
+    && npm config set fetch-retry-maxtimeout 120000 \
+    && npm config set fetch-timeout 300000
+
 COPY package*.json ./
 COPY frontend/package*.json ./frontend/
 COPY backend/package*.json ./backend/
