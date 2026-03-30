@@ -18,7 +18,8 @@ import {
     ChevronLeft,
     ChevronRight,
     FileText,
-    Wallet
+    Wallet,
+    Smartphone
 } from "lucide-react";
 
 interface SidebarProps {
@@ -104,6 +105,13 @@ const routes = [
         icon: FileText,
         href: "/reports/logs",
         color: "text-emerald-400",
+        module: "orders",
+    },
+    {
+        label: "Orçamento Mobile",
+        icon: Smartphone,
+        href: "/mobile/quote",
+        color: "text-violet-300",
         module: "orders",
     },
 ];
