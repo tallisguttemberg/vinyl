@@ -26,6 +26,7 @@ export function OrderEditClient({ id }: { id: string }) {
 
     const initialValues = {
         customerName: order.customerName,
+        type: ((order as any).type ?? "ORDER") as "ORDER" | "QUOTATION",
         aplicadorId: (order as any).aplicadorId ?? null,
         serviceCommissionRate: Number(order.serviceCommissionRate),
         discountType: ((order as any).discountType ?? "PERCENTAGE") as "PERCENTAGE" | "FIXED",
