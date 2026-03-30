@@ -22,6 +22,14 @@ import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
 import Image from "next/image";
 import { usePermission } from "@/hooks/usePermission";
 import { toast } from "sonner";
+import { Separator } from "@/components/ui/separator";
+import { 
+    Select, 
+    SelectContent, 
+    SelectItem, 
+    SelectTrigger, 
+    SelectValue 
+} from "@/components/ui/select";
 
 const formSchema = z.object({
     businessName: z.string().optional(),
