@@ -51,6 +51,10 @@ export default function DashboardPage() {
     const { data: orders, isLoading: ordersLoading } = api.order.getAll.useQuery(dateFilters, {
         enabled: !loadingPerms && canViewDashboard,
     });
+    const { data: settings } = api.organizationSettings.getSettings.useQuery(undefined, {
+        enabled: !loadingPerms && canViewDashboard,
+    });
+    const minMargin = Number(settings?.minimumMarginAllowed) || 20;
 
     const updateStatus = api.order.updateStatus.useMutation({
         onSuccess: () => {
@@ -199,11 +203,16 @@ export default function DashboardPage() {
                     <CardContent>
                         <div className="text-2xl font-bold text-green-600">R$ {stats?.grossProfit.toFixed(2)}</div>
                         <div className="flex justify-between items-center mt-1">
-                            <p className="text-xs text-muted-foreground">
-                                Margem Média: {stats?.margin.toFixed(1)}%
+                            <p className={`text-xs font-semibold ${
+                                (stats?.margin ?? 0) >= minMargin + 10 ? "text-green-500"
+                                : (stats?.margin ?? 0) >= minMargin ? "text-yellow-500"
+                                : "text-red-500"
+                            }`}>
+                                Margem: {stats?.margin.toFixed(1)}%
+                                {(stats?.margin ?? 0) < minMargin && " ⚠️"}
                             </p>
                             <p className="text-[10px] font-medium text-blue-500">
-                                Projetado: R$ {stats?.projectedProfit.toFixed(2)}
+                                Proj: R$ {stats?.projectedProfit.toFixed(2)}
                             </p>
                         </div>
                     </CardContent>
@@ -278,8 +287,20 @@ export default function DashboardPage() {
                                                                     </div>
                                                                 </CardHeader>
                                                                 <CardContent className="p-3 pt-0">
-                                                                    <div className="text-lg font-bold">
-                                                                        R$ {Number(order.totalAmount).toFixed(2)}
+                                                                    <div className="flex justify-between items-baseline">
+                                                                        <div className="text-lg font-bold">
+                                                                            R$ {Number(order.totalAmount).toFixed(2)}
+                                                                        </div>
+                                                                        <Badge
+                                                                            variant={
+                                                                                Number(order.margin) >= minMargin + 10 ? "default"
+                                                                                : Number(order.margin) >= minMargin ? "secondary"
+                                                                                : "destructive"
+                                                                            }
+                                                                            className="text-[9px] h-4 px-1"
+                                                                        >
+                                                                            {Number(order.margin).toFixed(0)}%
+                                                                        </Badge>
                                                                     </div>
                                                                     <div className="text-[10px] text-muted-foreground mt-1">
                                                                         {order.items.length} itens • {new Date(order.createdAt).toLocaleDateString()}

@@ -29,6 +29,8 @@ const formSchema = z.object({
     phone: z.string().optional(),
     email: z.string().email().optional().or(z.literal("")),
     address: z.string().optional(),
+    minimumMarginAllowed: z.coerce.number().min(0).max(100).default(20),
+    serviceCommissionBase: z.enum(["GROSS_REVENUE", "GROSS_PROFIT"]).default("GROSS_REVENUE"),
 });
 
 export default function SettingsPage() {
@@ -60,6 +62,8 @@ export default function SettingsPage() {
             phone: "",
             email: "",
             address: "",
+            minimumMarginAllowed: 20,
+            serviceCommissionBase: "GROSS_REVENUE",
         },
     });
 
@@ -71,6 +75,8 @@ export default function SettingsPage() {
                 phone: settings.phone || "",
                 email: settings.email || "",
                 address: settings.address || "",
+                minimumMarginAllowed: Number(settings.minimumMarginAllowed) || 20,
+                serviceCommissionBase: (settings.serviceCommissionBase as any) || "GROSS_REVENUE",
             });
         }
     }, [settings, form]);
@@ -98,7 +104,6 @@ export default function SettingsPage() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-
 
                 <Card>
                     <CardHeader>
@@ -151,9 +156,106 @@ export default function SettingsPage() {
                                         )}
                                     />
                                 </div>
+                                <Separator />
+                                <div className="space-y-4">
+                                    <h4 className="text-sm font-semibold">Contato</h4>
+                                    <FormField
+                                        control={form.control}
+                                        name="email"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>Email de Contato</FormLabel>
+                                                <FormControl>
+                                                    <Input placeholder="contato@empresa.com" {...field} disabled={!canEdit} />
+                                                </FormControl>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+
+                                    <FormField
+                                        control={form.control}
+                                        name="address"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>Endereço Completo</FormLabel>
+                                                <FormControl>
+                                                    <Input placeholder="Rua Exemplo, 123 - Bairro - Cidade/UF" {...field} disabled={!canEdit} />
+                                                </FormControl>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+                                </div>
                                 {canEdit && (
-                                    <Button type="submit" className="w-full" disabled={updateSettings.isPending}>
-                                        {updateSettings.isPending ? "Salvando..." : "Salvar Dados de Impressão"}
+                                    <Button type="submit" className="w-full mt-4" disabled={updateSettings.isPending}>
+                                        {updateSettings.isPending ? "Salvando..." : "Salvar Dados da Organização"}
+                                    </Button>
+                                )}
+                            </form>
+                        </Form>
+                    </CardContent>
+                </Card>
+
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Regras de Negócio e Margens</CardTitle>
+                        <CardDescription>
+                            Defina parâmetros globais para cálculos financeiros e previsões.
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <Form {...form}>
+                            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+                                <FormField
+                                    control={form.control}
+                                    name="minimumMarginAllowed"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>Margem de Lucro Mínima Sugerida (%)</FormLabel>
+                                            <FormControl>
+                                                <Input type="number" {...field} disabled={!canEdit} />
+                                            </FormControl>
+                                            <FormDescription>
+                                                O sistema exibirá alertas de prejuízo se a margem de uma OS for inferior a este valor.
+                                            </FormDescription>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+
+                                <FormField
+                                    control={form.control}
+                                    name="serviceCommissionBase"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>Base para Cálculo de Comissão</FormLabel>
+                                            <Select 
+                                                onValueChange={field.onChange} 
+                                                value={field.value}
+                                                disabled={!canEdit}
+                                            >
+                                                <FormControl>
+                                                    <SelectTrigger>
+                                                        <SelectValue placeholder="Selecione a base..." />
+                                                    </SelectTrigger>
+                                                </FormControl>
+                                                <SelectContent>
+                                                    <SelectItem value="GROSS_REVENUE">Faturamento Bruto (Padrão)</SelectItem>
+                                                    <SelectItem value="GROSS_PROFIT">Lucro Bruto (Após Custos)</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                            <FormDescription>
+                                                Define se a porcentagem de comissão deve incidir sobre o valor total da venda ou sobre o lucro.
+                                            </FormDescription>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+
+                                {canEdit && (
+                                    <Button type="submit" variant="secondary" className="w-full" disabled={updateSettings.isPending}>
+                                        {updateSettings.isPending ? "Salvando..." : "Salvar Regras de Negócio"}
                                     </Button>
                                 )}
                             </form>
@@ -161,52 +263,6 @@ export default function SettingsPage() {
                     </CardContent>
                 </Card>
             </div>
-
-            <Card>
-                <CardHeader>
-                    <CardTitle>Informações de Contato</CardTitle>
-                </CardHeader>
-                <CardContent>
-                    <Form {...form}>
-                        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                            <FormField
-                                control={form.control}
-                                name="email"
-                                render={({ field }) => (
-                                    <FormItem>
-                                        <FormLabel>Email de Contato</FormLabel>
-                                        <FormControl>
-                                            <Input placeholder="contato@empresa.com" {...field} disabled={!canEdit} />
-                                        </FormControl>
-                                        <FormMessage />
-                                    </FormItem>
-                                )}
-                            />
-
-                            <FormField
-                                control={form.control}
-                                name="address"
-                                render={({ field }) => (
-                                    <FormItem>
-                                        <FormLabel>Endereço Completo</FormLabel>
-                                        <FormControl>
-                                            <Input placeholder="Rua Exemplo, 123 - Bairro - Cidade/UF" {...field} disabled={!canEdit} />
-                                        </FormControl>
-                                        <FormMessage />
-                                    </FormItem>
-                                )}
-                            />
-
-                            {canEdit && (
-                                <Button type="submit" disabled={updateSettings.isPending}>
-                                    {updateSettings.isPending ? "Salvando..." : "Salvar Contato"}
-                                </Button>
-                            )}
-                        </form>
-                    </Form>
-                </CardContent>
-            </Card>
-
-            </div>
+        </div>
     );
 }

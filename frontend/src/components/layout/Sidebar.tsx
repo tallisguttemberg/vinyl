@@ -14,6 +14,7 @@ import {
     ShoppingCart,
     Building2,
     Users,
+    Contact,
     ChevronLeft,
     ChevronRight,
     FileText,
@@ -40,6 +41,13 @@ const routes = [
         icon: ShoppingCart,
         href: "/orders",
         color: "text-violet-400",
+        module: "orders",
+    },
+    {
+        label: "Clientes",
+        icon: Contact,
+        href: "/customers",
+        color: "text-blue-400",
         module: "orders",
     },
     {
@@ -76,6 +84,13 @@ const routes = [
         href: "/users",
         color: "text-indigo-400",
         module: "users",
+    },
+    {
+        label: "Orçamentos",
+        icon: FileText,
+        href: "/quotations",
+        color: "text-amber-400",
+        module: "orders",
     },
     {
         label: "Financeiro",

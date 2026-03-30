@@ -83,6 +83,7 @@ const orderEquipmentSchema = z.object({
 
 const formSchema = z.object({
     customerName: z.string().min(1, "Nome do cliente é obrigatório"),
+    type: z.enum(["QUOTATION", "ORDER"]).default("ORDER"),
     aplicadorId: z.string().optional().nullable(),
     serviceCommissionRate: z.coerce.number().min(0).max(100),
     discountType: z.enum(["PERCENTAGE", "FIXED"]).default("PERCENTAGE"),
@@ -90,6 +91,7 @@ const formSchema = z.object({
     supplies: z.array(orderSupplySchema).default([]),
     equipment: z.array(orderEquipmentSchema).default([]),
     items: z.array(itemSchema).min(1, "Adicione pelo menos um item"),
+    validUntil: z.string().optional().nullable(),
 });
 
 export type OrderFormValues = z.infer<typeof formSchema>;
@@ -136,13 +138,14 @@ export function OrderForm({ initialValues, orderId, isEditing = false }: OrderFo
     const { data: users } = api.user.getAll.useQuery();
     const { data: allSupplies } = api.supply.getAll.useQuery();
     const { data: allEquipment } = api.equipment.getAll.useQuery();
+    const { data: settings } = api.organizationSettings.getSettings.useQuery();
 
     const createOrder = api.order.create.useMutation({
-        onSuccess: () => { 
-            toast.success("Ordem de serviço criada!");
-            router.push("/orders"); 
+        onSuccess: (data) => { 
+            toast.success(data.type === "QUOTATION" ? "Orçamento criado!" : "Ordem de serviço criada!");
+            router.push(data.type === "QUOTATION" ? "/quotations" : "/orders"); 
         },
-        onError: (error: any) => { toast.error("Erro ao criar ordem", { description: error.message }); },
+        onError: (error: any) => { toast.error("Erro ao criar registro", { description: error.message }); },
     });
 
     const updateOrder = api.order.update.useMutation({
@@ -161,6 +164,7 @@ export function OrderForm({ initialValues, orderId, isEditing = false }: OrderFo
         resolver: zodResolver(formSchema) as any,
         defaultValues: initialValues ?? {
             customerName: "",
+            type: (new URLSearchParams(typeof window !== "undefined" ? window.location.search : "").get("type") as any) || "ORDER",
             aplicadorId: "",
             serviceCommissionRate: 0,
             discountType: "PERCENTAGE",
@@ -255,10 +259,59 @@ export function OrderForm({ initialValues, orderId, isEditing = false }: OrderFo
 
                         {/* Order details card */}
                         <Card>
-                            <CardHeader>
-                                <CardTitle>Detalhes do Pedido</CardTitle>
+                            <CardHeader className="flex flex-row items-center justify-between pb-2">
+                                <CardTitle>Detalhes do Registro</CardTitle>
+                                <FormField
+                                    control={form.control}
+                                    name="type"
+                                    render={({ field }) => (
+                                        <Badge 
+                                            variant={field.value === "QUOTATION" ? "outline" : "default"}
+                                            className={field.value === "QUOTATION" ? "border-amber-500 text-amber-600 bg-amber-50" : "bg-violet-600"}
+                                        >
+                                            {field.value === "QUOTATION" ? "ORÇAMENTO" : "ORDEM DE SERVIÇO"}
+                                        </Badge>
+                                    )}
+                                />
                             </CardHeader>
                             <CardContent className="space-y-4">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <FormField
+                                        control={form.control}
+                                        name="type"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>Tipo de Registro</FormLabel>
+                                                <Select onValueChange={field.onChange} value={field.value}>
+                                                    <FormControl>
+                                                        <SelectTrigger>
+                                                            <SelectValue />
+                                                        </SelectTrigger>
+                                                    </FormControl>
+                                                    <SelectContent>
+                                                        <SelectItem value="QUOTATION">Apenas Orçamento</SelectItem>
+                                                        <SelectItem value="ORDER">Ordem de Serviço (Gera Financeiro)</SelectItem>
+                                                    </SelectContent>
+                                                </Select>
+                                            </FormItem>
+                                        )}
+                                    />
+
+                                    {form.watch("type") === "QUOTATION" && (
+                                        <FormField
+                                            control={form.control}
+                                            name="validUntil"
+                                            render={({ field }) => (
+                                                <FormItem>
+                                                    <FormLabel>Validade da Proposta</FormLabel>
+                                                    <FormControl>
+                                                        <Input type="date" {...field} value={field.value || ""} />
+                                                    </FormControl>
+                                                </FormItem>
+                                            )}
+                                        />
+                                    )}
+                                </div>
                                 {/* Customer name */}
                                 <FormField
                                     control={form.control}
@@ -690,20 +743,26 @@ export function OrderForm({ initialValues, orderId, isEditing = false }: OrderFo
                                     </span>
                                     <span className="text-green-600">R$ {calculationResult.grossProfit.toFixed(2)}</span>
                                 </div>
-                                <div className="flex justify-between items-center">
-                                    <span className="text-muted-foreground">Margem Final:</span>
+                                <div className="flex justify-between items-center p-2 rounded bg-muted/30">
+                                    <span className="text-muted-foreground font-medium">Margem Final Presumida:</span>
                                     <Badge variant={
-                                        calculationResult.margin > 30 ? "default"
-                                            : calculationResult.margin > 15 ? "secondary"
+                                        calculationResult.margin >= (Number(settings?.minimumMarginAllowed) || 20) + 10 ? "default"
+                                            : calculationResult.margin >= (Number(settings?.minimumMarginAllowed) || 20) ? "secondary"
                                                 : "destructive"
                                     }>
                                         {calculationResult.margin.toFixed(1)}%
                                     </Badge>
                                 </div>
-                                {calculationResult.margin < 15 && (
-                                     <p className="text-[10px] text-red-500 font-medium mt-1 leading-tight">
-                                        ⚠️ Atenção: A margem está muito baixa. Operação sob risco de prejuízo real ou bloqueio nas regras de negócio.
-                                     </p>
+                                {calculationResult.margin < (Number(settings?.minimumMarginAllowed) || 20) && (
+                                     <div className="bg-red-50 border border-red-200 rounded p-3 mt-2 space-y-1">
+                                         <p className="text-[11px] text-red-600 font-bold flex items-start gap-1">
+                                            <Info className="h-4 w-4 shrink-0" />
+                                            ALERTA: Margem ({calculationResult.margin.toFixed(1)}%) abaixo do mínimo ({Number(settings?.minimumMarginAllowed || 20)}%)
+                                         </p>
+                                         <p className="text-[10px] text-red-500 leading-tight">
+                                            A rentabilidade deste pedido está abaixo das diretrizes da organização. Verifique custos e descontos.
+                                         </p>
+                                     </div>
                                 )}
                             </div>
                         )}

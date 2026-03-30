@@ -67,6 +67,21 @@ model Supplier {
   @@index([organizationId])
 }
 
+model Customer {
+  id             String    @id @default(cuid())
+  organizationId String
+  name           String
+  document       String?
+  email          String?
+  phone          String?
+  address        String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  orders         Order[]
+
+  @@index([organizationId])
+}
+
 model ServiceType {
   id                   String      @id @default(cuid())
   organizationId       String
@@ -85,13 +100,17 @@ model ServiceType {
 model Order {
   id                   String                 @id @default(cuid())
   organizationId       String
+  customerId           String?
   customerName         String
+  type                 OrderType              @default(ORDER)
   status               OrderStatus            @default(PENDING)
   totalAmount          Decimal                @db.Decimal(10, 2)
   totalCost            Decimal                @db.Decimal(10, 2)
   totalMaterialCost    Decimal                @default(0) @db.Decimal(10, 2)
   totalOperationalCost Decimal                @default(0) @db.Decimal(10, 2)
   totalFinishingCost   Decimal                @default(0) @db.Decimal(10, 2)
+  totalEquipmentCost   Decimal                @default(0) @db.Decimal(10, 2)
+  totalSupplyCost      Decimal                @default(0) @db.Decimal(10, 2)
   totalServiceCommission Decimal                @db.Decimal(10, 2)
   profit               Decimal                @db.Decimal(10, 2)
   margin               Decimal                @db.Decimal(5, 2)
@@ -100,11 +119,13 @@ model Order {
   discountValue        Decimal                @default(0) @db.Decimal(10, 2)
   aplicadorId          String?
   creatorId            String?
+  approvedAt           DateTime?
+  validUntil           DateTime?
   deletedAt            DateTime?
   createdAt            DateTime               @default(now())
   updatedAt            DateTime               @updatedAt
-  totalEquipmentCost   Decimal                @default(0) @db.Decimal(10, 2)
-  totalSupplyCost      Decimal                @default(0) @db.Decimal(10, 2)
+  
+  customer             Customer?              @relation(fields: [customerId], references: [id])
   transactions         FinancialTransaction[]
   creator              User?                  @relation("OrderCreator", fields: [creatorId], references: [id])
   aplicador            User?                  @relation("OrderVendedor", fields: [aplicadorId], references: [id])
@@ -113,6 +134,7 @@ model Order {
   logs                 OrderLog[]
   supplies             OrderSupply[]
 
+  @@index([customerId])
   @@index([aplicadorId])
   @@index([organizationId])
 }
@@ -341,10 +363,17 @@ enum BillingType {
 }
 
 enum OrderStatus {
+  DRAFT
+  QUOTATION
   PENDING
   IN_PROGRESS
   COMPLETED
   CANCELLED
+}
+
+enum OrderType {
+  QUOTATION
+  ORDER
 }
 
 enum DiscountType {

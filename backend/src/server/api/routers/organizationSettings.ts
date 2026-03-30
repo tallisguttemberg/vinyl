@@ -24,6 +24,8 @@ export const organizationSettingsRouter = createTRPCRouter({
                 taxId: z.string().optional(),
                 logoUrl: z.string().optional(),
                 logoDarkUrl: z.string().optional(),
+                minimumMarginAllowed: z.number().optional(),
+                serviceCommissionBase: z.string().optional(),
             }),
         )
         .mutation(async ({ ctx, input }) => {
